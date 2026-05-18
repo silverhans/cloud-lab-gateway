@@ -1,0 +1,27 @@
+# syntax=docker/dockerfile:1.7
+
+# ─── build stage ───────────────────────────────────────────────────────────
+FROM golang:1.22-alpine AS build
+WORKDIR /src
+
+# Cache deps separately for faster rebuilds.
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
+COPY . .
+
+# Strip symbol table, no DWARF debug — smaller binary, harder to RE.
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -trimpath -ldflags='-s -w' -o /out/gateway ./cmd/gateway
+
+# ─── final stage ───────────────────────────────────────────────────────────
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build --chown=nonroot:nonroot /out/gateway /gateway
+USER nonroot:nonroot
+EXPOSE 8080
+ENTRYPOINT ["/gateway"]
+CMD ["serve"]

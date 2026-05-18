@@ -1,0 +1,17 @@
+# syntax=docker/dockerfile:1.7
+
+FROM golang:1.22-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY migrations /migrations
+RUN go install github.com/pressly/goose/v3/cmd/goose@v3.20.0
+
+FROM alpine:3.20
+RUN addgroup -S clg && adduser -S -G clg clg \
+ && apk add --no-cache ca-certificates \
+ && rm -rf /var/cache/apk/*
+COPY --from=build /go/bin/goose /usr/local/bin/goose
+COPY --from=build /migrations /migrations
+USER clg:clg
+ENTRYPOINT ["/bin/sh", "-c", "goose -dir /migrations postgres \"$PG_DSN\" up"]

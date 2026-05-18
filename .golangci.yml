@@ -1,0 +1,95 @@
+run:
+  timeout: 5m
+  tests: true
+  go: "1.22"
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gocritic
+    - gosec
+    - gosimple
+    - revive
+    - bodyclose
+    - contextcheck
+    - errorlint
+    - exhaustive
+    - forbidigo
+    - gocyclo
+    - goconst
+    - goimports
+    - misspell
+    - nakedret
+    - nilerr
+    - nilnil
+    - noctx
+    - prealloc
+    - rowserrcheck
+    - sqlclosecheck
+    - thelper
+    - unconvert
+    - unparam
+    - wastedassign
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment   # noisy, low signal for hackathon
+  gocyclo:
+    min-complexity: 20
+  goconst:
+    min-len: 4
+    min-occurrences: 3
+  revive:
+    severity: warning
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: if-return
+      - name: increment-decrement
+      - name: indent-error-flow
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: var-declaration
+      - name: var-naming
+  forbidigo:
+    forbid:
+      - p: '^fmt\.Print(|f|ln)$'
+        msg: "use structured logger (zap), not fmt.Print*"
+      - p: '^panic$'
+        msg: "no panics in production code"
+      - p: 'lab\.LabInstance\.\State\s*='
+        msg: "do not mutate LabInstance.State directly; use Transition()"
+      - p: 'pool\.Project\.State\s*='
+        msg: "do not mutate Project.State directly; use AllocateTo/Release/MarkClean/QuarantineNow"
+
+issues:
+  exclude-dirs:
+    - bin
+    - vendor
+    - web
+    - migrations
+  exclude-rules:
+    - path: '_test\.go$'
+      linters: [gosec, forbidigo, gocyclo, errcheck]
+    - path: 'cmd/'
+      linters: [forbidigo]   # cmd/* may use fmt for CLI output
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+output:
+  sort-results: true

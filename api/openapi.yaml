@@ -1,0 +1,668 @@
+openapi: 3.1.0
+info:
+  title: Cloud Lab Gateway API
+  version: 0.1.0
+  description: |
+    REST API шлюза оркестрации облачных лабораторных стендов на КИ (OpenStack).
+
+    **Аутентификация**: HttpOnly cookie `clg_session` (JWT HS256, выдаётся после
+    LTI launch или /auth/login).
+
+    **Контракт**: эта спецификация — источник истины. Go handlers и TS-клиент
+    фронтенда генерируются из неё.
+
+servers:
+  - url: /api/v1
+    description: Behind nginx-proxy
+
+tags:
+  - name: auth
+    description: Аутентификация
+  - name: lti
+    description: LTI 1.3 endpoints (без /api/v1 префикса)
+  - name: labs
+    description: Лабораторные стенды (студент + преподаватель)
+  - name: checks
+    description: Запуск и просмотр Ansible-проверок
+  - name: admin-pool
+    description: Управление пулом проектов (admin)
+  - name: admin-settings
+    description: Настройки таймаутов (teacher/admin)
+  - name: admin-quota
+    description: Утилизация КИ (admin)
+  - name: audit
+    description: Аудит-лог (admin)
+  - name: stream
+    description: Server-Sent Events для live-статусов
+  - name: health
+    description: Health-checks
+
+security:
+  - sessionCookie: []
+
+paths:
+  /healthz:
+    get:
+      tags: [health]
+      security: []
+      summary: Liveness probe
+      responses:
+        "200":
+          description: ok
+
+  /readyz:
+    get:
+      tags: [health]
+      security: []
+      summary: Readiness probe (DB + Redis)
+      responses:
+        "200":
+          description: ok
+        "503":
+          description: dependencies unavailable
+
+  /auth/login:
+    post:
+      tags: [auth]
+      security: []
+      summary: Логин для teacher/admin (студенты — через LTI)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+      responses:
+        "204":
+          description: Set-Cookie clg_session
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Завершить сессию
+      responses:
+        "204": { description: ok }
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Текущий пользователь
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserMe"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /labs:
+    get:
+      tags: [labs]
+      summary: Список моих лаб (студент) или лаб курса (преподаватель)
+      parameters:
+        - in: query
+          name: course_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: state
+          schema:
+            type: array
+            items: { $ref: "#/components/schemas/LabState" }
+          style: form
+          explode: true
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/LabInstance" }
+
+    post:
+      tags: [labs]
+      summary: Запросить новый стенд
+      description: |
+        Студент может иметь только один активный стенд на курс.
+        Возможные отказы:
+        - 409 QuotaExceeded: cluster utilization >threshold
+        - 409 NoFreeProject: пул проектов исчерпан
+        - 409 LabAlreadyActive: уже есть активная лаба на этот курс
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [course_id, lab_template_id]
+              properties:
+                course_id: { type: string, format: uuid }
+                lab_template_id: { type: string, format: uuid }
+      responses:
+        "201":
+          description: Создано
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LabInstance" }
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /labs/{id}:
+    parameters:
+      - $ref: "#/components/parameters/LabId"
+    get:
+      tags: [labs]
+      summary: Детали стенда
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LabInstanceDetail" }
+
+    delete:
+      tags: [labs]
+      summary: Завершить стенд (cleanup)
+      responses:
+        "202":
+          description: Cleanup поставлен в очередь
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LabInstance" }
+
+  /labs/{id}/freeze:
+    parameters:
+      - $ref: "#/components/parameters/LabId"
+    post:
+      tags: [labs]
+      summary: Заморозить (студент — "сообщить о проблеме", teacher — manual freeze)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 5, maxLength: 1000 }
+                freeze_for_seconds:
+                  type: integer
+                  description: Только teacher. Default — из Settings.
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LabInstance" }
+
+  /labs/{id}/unfreeze:
+    parameters:
+      - $ref: "#/components/parameters/LabId"
+    post:
+      tags: [labs]
+      summary: Снять заморозку (только teacher)
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LabInstance" }
+
+  /labs/{id}/extend:
+    parameters:
+      - $ref: "#/components/parameters/LabId"
+    post:
+      tags: [labs]
+      summary: Продлить cleanup_at (только teacher)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [extend_by_seconds]
+              properties:
+                extend_by_seconds: { type: integer, minimum: 60, maximum: 86400 }
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LabInstance" }
+
+  /labs/{id}/ssh-key:
+    parameters:
+      - $ref: "#/components/parameters/LabId"
+    get:
+      tags: [labs]
+      summary: Скачать свой приватный SSH-ключ (только owner)
+      responses:
+        "200":
+          description: PEM-формат
+          content:
+            application/x-pem-file:
+              schema: { type: string }
+
+  /labs/{id}/checks:
+    parameters:
+      - $ref: "#/components/parameters/LabId"
+    get:
+      tags: [checks]
+      summary: История проверок стенда
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/CheckRun" }
+    post:
+      tags: [checks]
+      summary: Запустить проверку
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [check_template_id]
+              properties:
+                check_template_id: { type: string, format: uuid }
+      responses:
+        "202":
+          description: В очереди
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CheckRun" }
+
+  /checks/{id}:
+    parameters:
+      - $ref: "#/components/parameters/CheckId"
+    get:
+      tags: [checks]
+      summary: Детали запуска проверки (steps, stdout, summary)
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CheckRunDetail" }
+
+  /admin/projects:
+    get:
+      tags: [admin-pool]
+      summary: Состояние пула проектов
+      parameters:
+        - in: query
+          name: ki_domain_id
+          schema: { type: string }
+        - in: query
+          name: state
+          schema: { $ref: "#/components/schemas/ProjectState" }
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Project" }
+
+  /admin/projects/{id}/quarantine:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [admin-pool]
+      summary: Quarantine проекта (заблокировать от аренды)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 5 }
+      responses:
+        "200": { description: ok }
+
+  /admin/projects/{id}/release:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [admin-pool]
+      summary: Manual release (вернуть в FREE после ручного cleanup)
+      responses:
+        "200": { description: ok }
+
+  /admin/settings:
+    get:
+      tags: [admin-settings]
+      summary: Текущие настройки
+      parameters:
+        - in: query
+          name: scope
+          schema: { type: string, enum: [global, per_course, per_lab_template] }
+        - in: query
+          name: scope_id
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Setting" }
+    put:
+      tags: [admin-settings]
+      summary: Обновить настройку (teacher/admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SettingUpdate" }
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Setting" }
+
+  /admin/quota:
+    get:
+      tags: [admin-quota]
+      summary: Текущая утилизация КИ
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QuotaSnapshot" }
+
+  /admin/audit:
+    get:
+      tags: [audit]
+      summary: Аудит-лог
+      parameters:
+        - in: query
+          name: kind
+          schema: { type: string }
+        - in: query
+          name: actor_user_id
+          schema: { type: string, format: uuid }
+        - in: query
+          name: since
+          schema: { type: string, format: date-time }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/AuditEvent" }
+
+  /stream/labs:
+    get:
+      tags: [stream]
+      summary: SSE-стрим обновлений лаб текущего пользователя
+      description: |
+        Server-Sent Events. Каждая строка — `data: {json}\n\n`. Event types:
+        `lab.state_changed`, `lab.deploy_progress`, `check.state_changed`, `quota.snapshot`.
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+
+components:
+  parameters:
+    LabId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, format: uuid }
+    CheckId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string, format: uuid }
+
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: clg_session
+
+  responses:
+    Unauthorized:
+      description: Не авторизован
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Forbidden:
+      description: Запрещено
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    NotFound:
+      description: Не найдено
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    Conflict:
+      description: Конфликт (quota / pool empty / state machine violation)
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+
+  schemas:
+    Problem:
+      type: object
+      description: RFC 7807 problem details
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        code: { type: string, description: "Stable error code, e.g. ERR_QUOTA_EXCEEDED" }
+
+    UserMe:
+      type: object
+      required: [id, display_name, role]
+      properties:
+        id: { type: string, format: uuid }
+        display_name: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [student, teacher, admin] }
+        courses:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              name: { type: string }
+              role_in_course: { type: string, enum: [learner, teacher] }
+
+    LabState:
+      type: string
+      enum:
+        - pending_quota
+        - pending_project
+        - deploying
+        - ready
+        - checking
+        - frozen
+        - failed
+        - cleaning
+        - done
+        - rejected
+
+    LabInstance:
+      type: object
+      required: [id, student_user_id, course_id, lab_template_id, state, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        student_user_id: { type: string, format: uuid }
+        course_id: { type: string, format: uuid }
+        lab_template_id: { type: string, format: uuid }
+        project_id: { type: string, format: uuid, nullable: true }
+        state: { $ref: "#/components/schemas/LabState" }
+        state_reason: { type: string, nullable: true }
+        cleanup_at: { type: string, format: date-time, nullable: true }
+        unfreeze_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    LabInstanceDetail:
+      allOf:
+        - $ref: "#/components/schemas/LabInstance"
+        - type: object
+          properties:
+            ki_resources:
+              type: object
+              properties:
+                server_ids: { type: array, items: { type: string } }
+                floating_ips: { type: array, items: { type: string } }
+                network_id: { type: string }
+            deploy_steps:
+              type: array
+              items: { $ref: "#/components/schemas/LabDeployStep" }
+            latest_check_run:
+              $ref: "#/components/schemas/CheckRun"
+
+    LabDeployStep:
+      type: object
+      properties:
+        step_name:
+          type: string
+          enum: [allocate_project, create_keypair, provision_network, boot_vm, wait_ssh, initial_check]
+        status:
+          type: string
+          enum: [pending, in_progress, succeeded, failed, compensated]
+        attempt: { type: integer }
+        last_error: { type: string, nullable: true }
+        started_at: { type: string, format: date-time, nullable: true }
+        finished_at: { type: string, format: date-time, nullable: true }
+
+    CheckRun:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        lab_instance_id: { type: string, format: uuid }
+        check_template_id: { type: string, format: uuid }
+        state:
+          type: string
+          enum: [queued, running, passed, failed, timeout, errored]
+        summary: { type: string, nullable: true }
+        started_at: { type: string, format: date-time, nullable: true }
+        finished_at: { type: string, format: date-time, nullable: true }
+
+    CheckRunDetail:
+      allOf:
+        - $ref: "#/components/schemas/CheckRun"
+        - type: object
+          properties:
+            steps:
+              type: array
+              items:
+                type: object
+                properties:
+                  task_name: { type: string }
+                  status: { type: string, enum: [ok, changed, failed, unreachable, skipped] }
+                  expected: { }
+                  actual: { }
+                  message: { type: string }
+            ansible_stdout: { type: string }
+
+    ProjectState:
+      type: string
+      enum: [free, allocated, cleaning, quarantine, decommissioned]
+
+    Project:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        ki_project_id: { type: string }
+        ki_domain_id: { type: string }
+        name: { type: string }
+        state: { $ref: "#/components/schemas/ProjectState" }
+        allocated_to_lab_id: { type: string, format: uuid, nullable: true }
+        cleanup_failures: { type: integer }
+        last_state_change_at: { type: string, format: date-time }
+
+    QuotaSnapshot:
+      type: object
+      properties:
+        vcpus: { $ref: "#/components/schemas/Resource" }
+        ram: { $ref: "#/components/schemas/Resource" }
+        disk: { $ref: "#/components/schemas/Resource" }
+        utilization_pct:
+          type: object
+          properties:
+            vcpus: { type: number }
+            ram: { type: number }
+            disk: { type: number }
+            max: { type: number, description: "max of all three, used for threshold check" }
+        fetched_at: { type: string, format: date-time }
+        threshold_pct: { type: number, default: 90 }
+
+    Resource:
+      type: object
+      properties:
+        used: { type: number }
+        total: { type: number }
+        unit: { type: string }
+
+    Setting:
+      type: object
+      properties:
+        key: { type: string }
+        value: { }
+        scope: { type: string, enum: [global, per_course, per_lab_template] }
+        scope_id: { type: string, format: uuid, nullable: true }
+        updated_by_user_id: { type: string, format: uuid }
+        updated_at: { type: string, format: date-time }
+
+    SettingUpdate:
+      type: object
+      required: [key, value, scope]
+      properties:
+        key: { type: string }
+        value: { }
+        scope: { type: string, enum: [global, per_course, per_lab_template] }
+        scope_id: { type: string, format: uuid, nullable: true }
+
+    AuditEvent:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string }
+        actor_user_id: { type: string, format: uuid, nullable: true }
+        subject_type: { type: string }
+        subject_id: { type: string, format: uuid, nullable: true }
+        payload: { }
+        request_id: { type: string, nullable: true }
+        occurred_at: { type: string, format: date-time }

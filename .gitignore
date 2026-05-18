@@ -1,0 +1,27 @@
+bin/
+dist/
+coverage.out
+coverage.html
+*.log
+
+# secrets / env
+.env
+.env.local
+*.pem
+*.key
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# generated
+internal/adapters/storage/sqlcgen/
+internal/adapters/httpapi/generated.go
+web/dist/
+web/node_modules/
+
+# tooling
+.golangci-cache/

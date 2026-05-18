@@ -1,0 +1,53 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ["--maxkb=512"]
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      - id: go-fmt
+        name: go-fmt
+        entry: bash -c 'gofmt -s -w .'
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: go-vet
+        name: go-vet
+        entry: bash -c 'go vet ./...'
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: golangci-lint
+        name: golangci-lint
+        entry: bash -c 'golangci-lint run --new-from-rev=HEAD~1 || golangci-lint run'
+        language: system
+        types: [go]
+        pass_filenames: false
+
+      - id: hadolint
+        name: hadolint
+        entry: bash -c 'find deployments -name "Dockerfile*" -print0 | xargs -0 -I{} hadolint {} || true'
+        language: system
+        files: ^deployments/Dockerfile.*
+        pass_filenames: false
+
+      - id: openapi-validate
+        name: openapi-validate
+        entry: bash -c 'command -v redocly >/dev/null && redocly lint api/openapi.yaml || true'
+        language: system
+        files: ^api/openapi\.yaml$
+        pass_filenames: false

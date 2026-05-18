@@ -1,0 +1,170 @@
+name: cloud-lab-gateway
+
+x-app-env: &app-env
+  PG_DSN: postgres://clg:${POSTGRES_PASSWORD:-clg}@postgres:5432/clg?sslmode=disable
+  REDIS_ADDR: redis:6379
+  CLG_KEK_BASE64: ${CLG_KEK_BASE64}
+  CLG_JWT_SECRET: ${CLG_JWT_SECRET}
+  CLG_BIND_ADDR: 0.0.0.0:8080
+  CLG_LOG_LEVEL: ${LOG_LEVEL:-info}
+  CLG_QUOTA_THRESHOLD_PCT: ${CLG_QUOTA_THRESHOLD_PCT:-90}
+  CLG_DEFAULT_CLEANUP_SECONDS: ${CLG_DEFAULT_CLEANUP_SECONDS:-7200}
+  CLG_DEFAULT_FREEZE_SECONDS: ${CLG_DEFAULT_FREEZE_SECONDS:-86400}
+  OPENSTACK_AUTH_URL: ${OPENSTACK_AUTH_URL}
+  OPENSTACK_USERNAME: ${OPENSTACK_USERNAME}
+  OPENSTACK_PASSWORD: ${OPENSTACK_PASSWORD}
+  OPENSTACK_DOMAIN_NAME: ${OPENSTACK_DOMAIN_NAME:-Default}
+  OPENSTACK_REGION: ${OPENSTACK_REGION:-RegionOne}
+
+x-restart: &restart
+  restart: unless-stopped
+
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  read_only: true
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=64m
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    <<: *restart
+    environment:
+      POSTGRES_USER: clg
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-clg}
+      POSTGRES_DB: clg
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clg -d clg"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [backend]
+    # Postgres image requires writable rootfs; we limit capabilities.
+    security_opt:
+      - no-new-privileges:true
+
+  redis:
+    image: redis:7-alpine
+    <<: *restart
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [backend]
+    security_opt:
+      - no-new-privileges:true
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile.migrate
+    environment:
+      PG_DSN: postgres://clg:${POSTGRES_PASSWORD:-clg}@postgres:5432/clg?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [backend]
+    restart: "no"
+    <<: *hardening
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile.gateway
+    environment: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks: [backend]
+    expose: ["8080"]
+    healthcheck:
+      test: ["CMD", "/gateway", "healthcheck"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    <<: [*restart, *hardening]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  worker:
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile.worker
+    environment: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks: [backend, ki]    # worker has access to КИ + internal services
+    <<: [*restart, *hardening]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 768M
+
+  frontend:
+    build:
+      context: ../web
+      dockerfile: ../deployments/Dockerfile.frontend
+    networks: [backend]
+    expose: ["80"]
+    <<: *restart
+    security_opt:
+      - no-new-privileges:true
+
+  nginx-proxy:
+    image: nginx:1.27-alpine-slim
+    <<: *restart
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    depends_on:
+      - gateway
+      - frontend
+    networks: [backend]
+
+  moodle-emulator:
+    profiles: ["demo"]
+    build:
+      context: ..
+      dockerfile: deployments/Dockerfile.moodle-emulator
+    environment:
+      EMULATOR_GATEWAY_URL: http://nginx-proxy
+      EMULATOR_LTI_KID: ${EMULATOR_LTI_KID:-emu-key-1}
+    ports:
+      - "${MOODLE_EMULATOR_PORT:-9000}:9000"
+    networks: [backend]
+    <<: *restart
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  backend:
+    driver: bridge
+  ki:
+    # Reserved for КИ API egress — typically external bridge or host network
+    # depending on lab connectivity. Configure via override file in prod.
+    driver: bridge

@@ -1,0 +1,28 @@
+# Gitleaks config — focused on what AI agents tend to leak.
+title = "cloud-lab-gateway gitleaks"
+
+[allowlist]
+description = "global allowlist"
+paths = [
+  '''.+_test\.go$''',
+  '''.+\.example$''',
+  '''docs/.*''',
+]
+
+[[rules]]
+id = "openstack-credentials"
+description = "OpenStack admin password or token in code"
+regex = '''(?i)(openstack|os_)(password|auth_token|secret)\s*[:=]\s*['"][^'"]{6,}['"]'''
+tags = ["secret"]
+
+[[rules]]
+id = "moodle-ws-token"
+description = "Moodle web services token"
+regex = '''(?i)(moodle_ws|wstoken)\s*[:=]\s*['"][a-f0-9]{20,}['"]'''
+tags = ["secret"]
+
+[[rules]]
+id = "kek-base64"
+description = "Hardcoded KEK"
+regex = '''(?i)(kek|key_encryption_key)\s*[:=]\s*['"][A-Za-z0-9+/=]{32,}['"]'''
+tags = ["secret"]

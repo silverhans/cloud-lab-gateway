@@ -1,0 +1,38 @@
+# syntax=docker/dockerfile:1.7
+
+# The worker runs Ansible against student VMs, so it cannot be fully distroless —
+# we need a small ansible-core install. We use a minimal alpine base hardened
+# at runtime (read-only rootfs, non-root, dropped caps).
+
+# ─── build stage ───────────────────────────────────────────────────────────
+FROM golang:1.22-alpine AS build
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
+COPY . .
+
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -trimpath -ldflags='-s -w' -o /out/worker ./cmd/worker
+
+# ─── final stage ───────────────────────────────────────────────────────────
+FROM alpine:3.20
+
+# hadolint ignore=DL3018
+RUN addgroup -S clg && adduser -S -G clg clg \
+ && apk add --no-cache ansible-core openssh-client ca-certificates tini \
+ && rm -rf /var/cache/apk/*
+
+COPY --from=build --chown=clg:clg /out/worker /worker
+COPY --chown=clg:clg ansible /ansible
+
+USER clg:clg
+WORKDIR /home/clg
+
+ENTRYPOINT ["/sbin/tini", "--", "/worker"]
+CMD ["run"]
