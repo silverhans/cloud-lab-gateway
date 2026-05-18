@@ -48,11 +48,10 @@ func set(states ...State) map[State]struct{} {
 	return m
 }
 
-// CanTransition reports whether from → to is a legal transition.
+// CanTransition reports whether from → to is a legal transition. Self-loops
+// are allowed only when the transitions table explicitly lists them (currently
+// only StateCleaning → StateCleaning for cleanup retries).
 func CanTransition(from, to State) bool {
-	if from == to {
-		return false
-	}
 	allowed, ok := allowedTransitions[from]
 	if !ok {
 		return false
