@@ -100,10 +100,10 @@ func (r *fakeRepo) attemptsFor(id int64) int {
 
 // fakeBus captures publishes; supports a per-topic failure injection.
 type fakeBus struct {
-	mu       sync.Mutex
-	got      []ports.Message
-	failOn   map[string]error // topic → error to return
-	delay    time.Duration
+	mu     sync.Mutex
+	got    []ports.Message
+	failOn map[string]error // topic → error to return
+	delay  time.Duration
 }
 
 func newFakeBus() *fakeBus { return &fakeBus{failOn: map[string]error{}} }

@@ -223,12 +223,13 @@ CREATE INDEX encrypted_secrets_kind_ref ON encrypted_secrets (kind, ref_id);
 CREATE TABLE settings (
     key                TEXT NOT NULL,
     scope              TEXT NOT NULL CHECK (scope IN ('global','per_course','per_lab_template')),
-    scope_id           TEXT,  -- nullable for global
+    scope_id           TEXT NOT NULL DEFAULT '',  -- '' means "global / no specific scope"
     value              JSONB NOT NULL,
     updated_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-    PRIMARY KEY (key, scope, COALESCE(scope_id, ''))
+    PRIMARY KEY (key, scope, scope_id)
 );
+-- For 'global' scope, scope_id MUST be ''. Application layer enforces this.
 
 -- ------------------------------------------------------------
 -- Audit log (append-only)

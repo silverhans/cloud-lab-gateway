@@ -65,12 +65,14 @@ jobs:
 
       - name: gosec
         run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@v2.20.0
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.21.4
           # severity=high: gosec's deep call-graph analysis at medium severity
           # produces noise (every http.Server.ListenAndServe → net.Listen chain
           # gets flagged). HIGH catches real issues (hardcoded creds, weak
           # crypto, SQL injection) which is what we actually care about.
-          gosec -severity high -confidence medium -quiet ./...
+          # -exclude-dir=web: the frontend's node_modules contains a Go-tagged
+          # `flatted` package that confuses gosec's loader.
+          gosec -severity high -confidence medium -quiet -exclude-dir=web ./...
 
       - name: govulncheck
         run: |
