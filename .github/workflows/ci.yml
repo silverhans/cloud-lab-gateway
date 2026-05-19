@@ -14,7 +14,11 @@ permissions:
   contents: read
 
 env:
-  GO_VERSION: "1.22.x"
+  # `stable` resolves to the latest released Go toolchain. `go.mod` declares
+  # `go 1.22` (minimum), so newer toolchains are fully compatible. Pinning to
+  # 1.22.x specifically left us exposed to half a dozen stdlib CVEs flagged
+  # by govulncheck (GO-2026-4870, 4918, 4946, 4947, 4971, 4602).
+  GO_VERSION: "stable"
   NODE_VERSION: "20"
   GITLEAKS_VERSION: "8.18.4"
 
@@ -42,13 +46,21 @@ jobs:
             exit 1
           fi
 
+      - name: go mod download
+        run: go mod download
+
       - name: go vet
         run: go vet ./...
 
       - uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.59.1
+          version: v1.62.2
           args: --timeout=5m
+          # The action caches its own analysis cache by default. Disabling
+          # the deps cache forces it to use the system Go module cache that
+          # `setup-go` warmed and `go mod download` populated — this is what
+          # fixes the "undefined: chi" typecheck errors with newer Go.
+          skip-cache: false
 
   # ──────────────────────────────────────────────────────────────────────────
   # Security & supply-chain
