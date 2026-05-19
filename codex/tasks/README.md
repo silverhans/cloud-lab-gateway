@@ -10,7 +10,10 @@ Every Codex agent **must** read these two files before doing anything else:
 
 ## Batch 1 — parallelisable kickoff
 
-Five tasks that can start immediately. Stream A and Stream B work in different file trees, so two Codex agents can run them in parallel without conflicts.
+Four tasks can start immediately. Stream A and Stream B work in different
+file trees, so two Codex agents can run them in parallel without conflicts.
+`A2.3` is the only follow-up task in this batch: start it after `A2.2`
+lands, because it consumes the PoolRepo + UnitOfWork shipped there.
 
 ### Stream A — Backend Core (silverhans + user's Codex)
 
@@ -18,7 +21,7 @@ Five tasks that can start immediately. Stream A and Stream B work in different f
 |---|---|---|
 | [A2.1_openstack_adapter.md](A2.1_openstack_adapter.md) | — (independent) | 3-4 h |
 | [A2.2_pool_repo.md](A2.2_pool_repo.md) | — (independent) | 2-3 h |
-| [A2.3_quota_and_create_lab.md](A2.3_quota_and_create_lab.md) | A2.2 finished | 3-4 h |
+| [A2.3_quota_and_create_lab.md](A2.3_quota_and_create_lab.md) | A2.2 merged or available in branch | 3-4 h |
 
 ### Stream B — Integrations + UX (partner + partner's Codex)
 
