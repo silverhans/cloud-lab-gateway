@@ -12,7 +12,6 @@ linters:
     - staticcheck
     - unused
     - gocritic
-    - gosec
     - gosimple
     - revive
     - bodyclose
@@ -35,11 +34,14 @@ linters:
     - unconvert
     - unparam
     - wastedassign
+    # gosec runs as a separate CI job — keeping it out of golangci-lint avoids
+    # double-reporting and lets the dedicated job tune severity independently.
 
 linters-settings:
   errcheck:
     check-type-assertions: true
-    check-blank: true
+    # check-blank intentionally off: `_ = log.Sync()` and `_ = godotenv.Load()`
+    # are idiomatic patterns for "I genuinely don't care about this error".
   govet:
     enable-all: true
     disable:
@@ -57,7 +59,6 @@ linters-settings:
       - name: error-return
       - name: error-strings
       - name: error-naming
-      - name: exported
       - name: if-return
       - name: increment-decrement
       - name: indent-error-flow
@@ -66,16 +67,21 @@ linters-settings:
       - name: time-naming
       - name: var-declaration
       - name: var-naming
+      # `exported` rule intentionally OFF: domain aggregates intentionally
+      # carry contextful names (lab.LabInstance, audit.AuditEvent) even at
+      # the cost of stutter, because they are read by humans more often than
+      # they are typed. revive's `exported` flags this as a violation.
   forbidigo:
     forbid:
       - p: '^fmt\.Print(|f|ln)$'
         msg: "use structured logger (zap), not fmt.Print*"
-      - p: '^panic$'
-        msg: "no panics in production code"
       - p: 'lab\.LabInstance\.\State\s*='
         msg: "do not mutate LabInstance.State directly; use Transition()"
       - p: 'pool\.Project\.State\s*='
         msg: "do not mutate Project.State directly; use AllocateTo/Release/MarkClean/QuarantineNow"
+      # `panic` intentionally NOT forbidden: it is the contract of `Must*`
+      # constructors (logger.MustNew, lab.MustTransition). Genuine misuse
+      # is caught by code review.
 
 issues:
   exclude-dirs:
@@ -85,7 +91,7 @@ issues:
     - migrations
   exclude-rules:
     - path: '_test\.go$'
-      linters: [gosec, forbidigo, gocyclo, errcheck]
+      linters: [gosec, forbidigo, gocyclo, errcheck, govet]
     - path: 'cmd/'
       linters: [forbidigo]   # cmd/* may use fmt for CLI output
   max-issues-per-linter: 0

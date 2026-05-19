@@ -6,9 +6,9 @@
 -- All state enums live as TEXT + CHECK constraints to keep migrations
 -- simple. Domain code constants are the source of truth for valid values.
 --
--- goose splits this file on `;`. The only places where we wrap statements
--- in -- +goose StatementBegin/End are the PL/pgSQL function (because the
--- function body contains `;` characters that goose must not split on).
+-- goose splits this file on semicolons. PL/pgSQL functions further below are
+-- wrapped in StatementBegin/StatementEnd markers because the function body
+-- itself contains semicolons that goose must not treat as statement breaks.
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 

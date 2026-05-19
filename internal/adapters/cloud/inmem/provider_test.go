@@ -2,6 +2,7 @@ package inmem
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/cloud-lab-gateway/gateway/internal/ports"
@@ -129,7 +130,7 @@ func TestProvider_FaultInjection(t *testing.T) {
 	p := New(DefaultCapacity(), Faults{BootServerErr: wantErr})
 
 	_, err := p.BootServer(ctx, "proj", ports.ServerSpec{Name: "x", FlavorRef: "m1.small"})
-	if err != wantErr {
+	if !errors.Is(err, wantErr) {
 		t.Errorf("expected injected error, got %v", err)
 	}
 }

@@ -38,13 +38,12 @@ func TestEvaluate_BlocksWhenAnyDimensionExceedsThreshold(t *testing.T) {
 
 func TestEvaluate_BlocksExactlyAboveThreshold(t *testing.T) {
 	t.Parallel()
-	// Predicted exactly 90.001 should block; exactly 90.0 should allow.
+	// 85 vcpus used + 6 requested = 91 → 91% predicted utilisation → block.
 	d := Evaluate(snap(85, 50, 50), shared.ResourceRequest{VCPUs: 6, RAMMB: 0, DiskGB: 0}, 90)
-	if !d.Allowed { // 91/100 = 91% — actually blocks; let me recompute
-		// 85 + 6 = 91 → 91% > 90 → block
-		// so this SHOULD block
+	if d.Allowed {
+		t.Errorf("expected block at predicted 91%%, got allow (%.1f%%)", d.PredictedPct)
 	}
-	// Re-test with allowed-edge case: 90% exactly.
+	// 85 + 5 = 90 → 90% exactly is the inclusive boundary → allow.
 	d2 := Evaluate(snap(85, 50, 50), shared.ResourceRequest{VCPUs: 5, RAMMB: 0, DiskGB: 0}, 90)
 	if !d2.Allowed {
 		t.Errorf("expected allow at exactly 90%%, got block (%.1f%%)", d2.PredictedPct)

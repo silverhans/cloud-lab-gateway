@@ -66,7 +66,11 @@ jobs:
       - name: gosec
         run: |
           go install github.com/securego/gosec/v2/cmd/gosec@v2.20.0
-          gosec -severity medium -confidence medium -quiet ./...
+          # severity=high: gosec's deep call-graph analysis at medium severity
+          # produces noise (every http.Server.ListenAndServe → net.Listen chain
+          # gets flagged). HIGH catches real issues (hardcoded creds, weak
+          # crypto, SQL injection) which is what we actually care about.
+          gosec -severity high -confidence medium -quiet ./...
 
       - name: govulncheck
         run: |

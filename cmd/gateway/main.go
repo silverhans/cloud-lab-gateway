@@ -97,8 +97,8 @@ func runServe() error {
 	if err != nil {
 		return fmt.Errorf("config: %w", err)
 	}
-	if err := cfg.ValidateForGateway(); err != nil {
-		return fmt.Errorf("config validation: %w", err)
+	if vErr := cfg.ValidateForGateway(); vErr != nil {
+		return fmt.Errorf("config validation: %w", vErr)
 	}
 
 	log := logger.MustNew(cfg.LogLevel)
