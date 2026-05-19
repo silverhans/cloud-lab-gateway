@@ -12,11 +12,11 @@ const DefaultThresholdPct = 90.0
 
 // Decision is the result of a quota guard evaluation.
 type Decision struct {
-	Allowed       bool
-	Reason        string
-	Snapshot      shared.QuotaSnapshot
-	PredictedPct  float64
-	ThresholdPct  float64
+	Allowed      bool
+	Reason       string
+	Snapshot     shared.QuotaSnapshot
+	PredictedPct float64
+	ThresholdPct float64
 }
 
 // Evaluate returns whether a deploy that requests `req` is allowed given the

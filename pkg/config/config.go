@@ -58,15 +58,15 @@ type Lifecycle struct {
 }
 
 type OpenStack struct {
-	AuthURL          string
-	Username         string
-	Password         string
-	DomainName       string
-	ProjectName      string
-	Region           string
-	VerifyTLS        bool
-	DefaultFlavor    string
-	PublicNetworkID  string
+	AuthURL         string
+	Username        string
+	Password        string
+	DomainName      string
+	ProjectName     string
+	Region          string
+	VerifyTLS       bool
+	DefaultFlavor   string
+	PublicNetworkID string
 }
 
 // Load reads config from env (.env is loaded if present). Returns an error if

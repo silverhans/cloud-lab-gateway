@@ -8,16 +8,16 @@ import (
 
 // Strongly-typed UUIDs prevent accidental cross-aggregate misuse at compile time.
 type (
-	UserID         uuid.UUID
-	CourseID       uuid.UUID
-	EnrollmentID   uuid.UUID
-	ProjectID      uuid.UUID
-	LabInstanceID  uuid.UUID
-	LabTemplateID  uuid.UUID
-	CheckTemplate  uuid.UUID
-	CheckRunID     uuid.UUID
-	AuditEventID   uuid.UUID
-	SecretID       uuid.UUID
+	UserID        uuid.UUID
+	CourseID      uuid.UUID
+	EnrollmentID  uuid.UUID
+	ProjectID     uuid.UUID
+	LabInstanceID uuid.UUID
+	LabTemplateID uuid.UUID
+	CheckTemplate uuid.UUID
+	CheckRunID    uuid.UUID
+	AuditEventID  uuid.UUID
+	SecretID      uuid.UUID
 )
 
 func NewLabInstanceID() LabInstanceID { return LabInstanceID(uuid.New()) }

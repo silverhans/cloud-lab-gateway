@@ -1,11 +1,14 @@
 -- +goose Up
--- +goose StatementBegin
 
 -- ============================================================
 -- Cloud Lab Gateway — initial schema
 -- ============================================================
 -- All state enums live as TEXT + CHECK constraints to keep migrations
 -- simple. Domain code constants are the source of truth for valid values.
+--
+-- goose splits this file on `;`. The only places where we wrap statements
+-- in -- +goose StatementBegin/End are the PL/pgSQL function (because the
+-- function body contains `;` characters that goose must not split on).
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
@@ -269,21 +272,21 @@ CREATE TABLE quota_cache (
 -- ------------------------------------------------------------
 -- Triggers: prevent UPDATE/DELETE on audit_events
 -- ------------------------------------------------------------
+
+-- +goose StatementBegin
 CREATE OR REPLACE FUNCTION reject_audit_mutations() RETURNS trigger AS $$
 BEGIN
     RAISE EXCEPTION 'audit_events is append-only';
 END
 $$ LANGUAGE plpgsql;
+-- +goose StatementEnd
 
 CREATE TRIGGER audit_events_no_update BEFORE UPDATE ON audit_events
     FOR EACH ROW EXECUTE FUNCTION reject_audit_mutations();
 CREATE TRIGGER audit_events_no_delete BEFORE DELETE ON audit_events
     FOR EACH ROW EXECUTE FUNCTION reject_audit_mutations();
 
--- +goose StatementEnd
-
 -- +goose Down
--- +goose StatementBegin
 DROP TABLE IF EXISTS outbox CASCADE;
 DROP TABLE IF EXISTS audit_events CASCADE;
 DROP TABLE IF EXISTS settings CASCADE;
@@ -301,4 +304,3 @@ DROP TABLE IF EXISTS courses CASCADE;
 DROP TABLE IF EXISTS lti_identities CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 DROP FUNCTION IF EXISTS reject_audit_mutations() CASCADE;
--- +goose StatementEnd

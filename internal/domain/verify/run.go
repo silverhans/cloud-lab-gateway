@@ -11,12 +11,12 @@ import (
 type RunState string
 
 const (
-	StateQueued   RunState = "queued"
-	StateRunning  RunState = "running"
-	StatePassed   RunState = "passed"
-	StateFailed   RunState = "failed"
-	StateTimeout  RunState = "timeout"
-	StateErrored  RunState = "errored"
+	StateQueued  RunState = "queued"
+	StateRunning RunState = "running"
+	StatePassed  RunState = "passed"
+	StateFailed  RunState = "failed"
+	StateTimeout RunState = "timeout"
+	StateErrored RunState = "errored"
 )
 
 func (s RunState) IsTerminal() bool {

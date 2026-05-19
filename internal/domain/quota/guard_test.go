@@ -9,9 +9,9 @@ import (
 
 func snap(usedCPU, usedRAM, usedDisk int64) shared.QuotaSnapshot {
 	return shared.QuotaSnapshot{
-		VCPUs: shared.Capacity{Used: usedCPU, Total: 100, Unit: "vcpu"},
-		RAM:   shared.Capacity{Used: usedRAM, Total: 100, Unit: "GB"},
-		Disk:  shared.Capacity{Used: usedDisk, Total: 100, Unit: "GB"},
+		VCPUs:     shared.Capacity{Used: usedCPU, Total: 100, Unit: "vcpu"},
+		RAM:       shared.Capacity{Used: usedRAM, Total: 100, Unit: "GB"},
+		Disk:      shared.Capacity{Used: usedDisk, Total: 100, Unit: "GB"},
 		FetchedAt: time.Now(),
 	}
 }
@@ -66,9 +66,9 @@ func TestEvaluate_ZeroTotalCountsAsZeroPct(t *testing.T) {
 	t.Parallel()
 	// Edge case: provider returns 0/0 (cluster info unavailable).
 	s := shared.QuotaSnapshot{
-		VCPUs: shared.Capacity{Used: 0, Total: 0},
-		RAM:   shared.Capacity{Used: 0, Total: 0},
-		Disk:  shared.Capacity{Used: 0, Total: 0},
+		VCPUs:     shared.Capacity{Used: 0, Total: 0},
+		RAM:       shared.Capacity{Used: 0, Total: 0},
+		Disk:      shared.Capacity{Used: 0, Total: 0},
 		FetchedAt: time.Now(),
 	}
 	d := Evaluate(s, shared.ResourceRequest{VCPUs: 1, RAMMB: 1024, DiskGB: 10}, 90)

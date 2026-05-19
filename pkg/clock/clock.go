@@ -19,7 +19,7 @@ type Advance struct {
 	now time.Time
 }
 
-func NewAdvance(start time.Time) *Advance       { return &Advance{now: start} }
-func (a *Advance) Now() time.Time                { return a.now }
-func (a *Advance) Set(t time.Time)               { a.now = t }
-func (a *Advance) Add(d time.Duration)           { a.now = a.now.Add(d) }
+func NewAdvance(start time.Time) *Advance { return &Advance{now: start} }
+func (a *Advance) Now() time.Time         { return a.now }
+func (a *Advance) Set(t time.Time)        { a.now = t }
+func (a *Advance) Add(d time.Duration)    { a.now = a.now.Add(d) }

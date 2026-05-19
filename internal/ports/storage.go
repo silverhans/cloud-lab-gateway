@@ -112,12 +112,12 @@ type SettingsRepo interface {
 }
 
 type Setting struct {
-	Key            string
-	Value          []byte // JSON
-	Scope          string // "global" | "per_course" | "per_lab_template"
-	ScopeID        *string
-	UpdatedByUser  shared.UserID
-	UpdatedAt      time.Time
+	Key           string
+	Value         []byte // JSON
+	Scope         string // "global" | "per_course" | "per_lab_template"
+	ScopeID       *string
+	UpdatedByUser shared.UserID
+	UpdatedAt     time.Time
 }
 
 // AuditRepo persists append-only audit events.

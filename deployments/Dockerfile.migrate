@@ -8,6 +8,7 @@ COPY migrations /migrations
 RUN go install github.com/pressly/goose/v3/cmd/goose@v3.20.0
 
 FROM alpine:3.20
+# hadolint ignore=DL3018
 RUN addgroup -S clg && adduser -S -G clg clg \
  && apk add --no-cache ca-certificates \
  && rm -rf /var/cache/apk/*

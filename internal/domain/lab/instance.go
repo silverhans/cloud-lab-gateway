@@ -9,11 +9,11 @@ import (
 // LabInstance is the aggregate root of the Lab Lifecycle context.
 // All state changes go through Transition; direct mutation of State is a bug.
 type LabInstance struct {
-	ID               shared.LabInstanceID
-	StudentUserID    shared.UserID
-	CourseID         shared.CourseID
-	LabTemplateID    shared.LabTemplateID
-	ProjectID        *shared.ProjectID
+	ID            shared.LabInstanceID
+	StudentUserID shared.UserID
+	CourseID      shared.CourseID
+	LabTemplateID shared.LabTemplateID
+	ProjectID     *shared.ProjectID
 
 	State       State
 	StateReason string
@@ -41,10 +41,10 @@ type LabInstance struct {
 
 // KIResources captures provider-side resource handles owned by this lab.
 type KIResources struct {
-	ServerIDs    []string
-	NetworkID    string
-	FloatingIPs  []string
-	KeypairName  string
+	ServerIDs   []string
+	NetworkID   string
+	FloatingIPs []string
+	KeypairName string
 }
 
 // New creates a new LabInstance in PendingQuota state.

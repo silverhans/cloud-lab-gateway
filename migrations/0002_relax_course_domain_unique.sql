@@ -1,5 +1,4 @@
 -- +goose Up
--- +goose StatementBegin
 
 -- Реальность учебного кластера КИ: команде хакатона выдаётся один домен на всех
 -- (например, "Hackhaton"). Несколько логических курсов в нашей БД могут
@@ -12,10 +11,6 @@
 ALTER TABLE courses DROP CONSTRAINT courses_ki_domain_id_key;
 CREATE INDEX courses_ki_domain_id_idx ON courses (ki_domain_id);
 
--- +goose StatementEnd
-
 -- +goose Down
--- +goose StatementBegin
 DROP INDEX IF EXISTS courses_ki_domain_id_idx;
 ALTER TABLE courses ADD CONSTRAINT courses_ki_domain_id_key UNIQUE (ki_domain_id);
--- +goose StatementEnd

@@ -42,15 +42,15 @@ func DefaultCapacity() Capacity {
 
 // Faults injects errors for testing. Each method consulted before doing work.
 type Faults struct {
-	GetQuotaSnapshotErr  error
-	CreateKeypairErr     error
-	DeleteKeypairErr     error
-	BootServerErr        error
-	WaitForActiveErr     error
+	GetQuotaSnapshotErr   error
+	CreateKeypairErr      error
+	DeleteKeypairErr      error
+	BootServerErr         error
+	WaitForActiveErr      error
 	AllocateFloatingIPErr error
-	DeleteServerErr      error
-	CreateNetworkErr     error
-	DeleteNetworkErr     error
+	DeleteServerErr       error
+	CreateNetworkErr      error
+	DeleteNetworkErr      error
 
 	// BootLatency controls how long WaitForActive takes; tests usually use 0.
 	BootLatency time.Duration
@@ -58,15 +58,15 @@ type Faults struct {
 
 // Provider is the in-memory implementation of ports.CloudProvider.
 type Provider struct {
-	mu        sync.Mutex
-	capacity  Capacity
-	used      Capacity
-	servers   map[string]*server      // serverID → server
-	keypairs  map[string]*keypair     // projectID+name → keypair
-	networks  map[string]*network     // networkID → network
-	floating  map[string]string       // ip → serverID
-	faults    Faults
-	now       func() time.Time
+	mu       sync.Mutex
+	capacity Capacity
+	used     Capacity
+	servers  map[string]*server  // serverID → server
+	keypairs map[string]*keypair // projectID+name → keypair
+	networks map[string]*network // networkID → network
+	floating map[string]string   // ip → serverID
+	faults   Faults
+	now      func() time.Time
 
 	// Counter for synthesised IDs.
 	seq int64
@@ -86,10 +86,10 @@ type server struct {
 }
 
 type keypair struct {
-	name       string
-	projectID  string
-	publicKey  string
-	privateKey []byte
+	name        string
+	projectID   string
+	publicKey   string
+	privateKey  []byte
 	fingerprint string
 }
 
@@ -134,9 +134,9 @@ func (p *Provider) GetQuotaSnapshot(_ context.Context) (shared.QuotaSnapshot, er
 		return shared.QuotaSnapshot{}, p.faults.GetQuotaSnapshotErr
 	}
 	return shared.QuotaSnapshot{
-		VCPUs: shared.Capacity{Used: p.used.VCPUs, Total: p.capacity.VCPUs, Unit: "vcpu"},
-		RAM:   shared.Capacity{Used: p.used.RAMMB, Total: p.capacity.RAMMB, Unit: "MB"},
-		Disk:  shared.Capacity{Used: p.used.DiskGB, Total: p.capacity.DiskGB, Unit: "GB"},
+		VCPUs:     shared.Capacity{Used: p.used.VCPUs, Total: p.capacity.VCPUs, Unit: "vcpu"},
+		RAM:       shared.Capacity{Used: p.used.RAMMB, Total: p.capacity.RAMMB, Unit: "MB"},
+		Disk:      shared.Capacity{Used: p.used.DiskGB, Total: p.capacity.DiskGB, Unit: "GB"},
 		FetchedAt: p.now(),
 	}, nil
 }
@@ -210,16 +210,16 @@ func (p *Provider) BootServer(_ context.Context, projectID string, spec ports.Se
 	}
 	id := p.nextID("srv")
 	p.servers[id] = &server{
-		id:        id,
-		projectID: projectID,
-		name:      spec.Name,
-		imageRef:  spec.ImageRef,
-		flavorRef: spec.FlavorRef,
-		networkID: spec.NetworkID,
+		id:          id,
+		projectID:   projectID,
+		name:        spec.Name,
+		imageRef:    spec.ImageRef,
+		flavorRef:   spec.FlavorRef,
+		networkID:   spec.NetworkID,
 		keypairName: spec.KeypairName,
-		metadata:  copyMeta(spec.Metadata),
-		bootedAt:  p.now().Add(p.faults.BootLatency),
-		resources: req,
+		metadata:    copyMeta(spec.Metadata),
+		bootedAt:    p.now().Add(p.faults.BootLatency),
+		resources:   req,
 	}
 	p.used.VCPUs += int64(req.VCPUs)
 	p.used.RAMMB += int64(req.RAMMB)

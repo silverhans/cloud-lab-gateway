@@ -42,20 +42,20 @@ func TestCanTransition_IllegalMoves(t *testing.T) {
 	illegal := []struct {
 		from, to State
 	}{
-		{StatePendingQuota, StateDeploying},  // must go via PendingProject
-		{StatePendingQuota, StateReady},      // skip deploy
-		{StateDeploying, StateFrozen},        // can't freeze before ready
-		{StateDeploying, StateCleaning},      // must go via Failed
-		{StateReady, StateRejected},          // rejected is only for pre-deploy
-		{StateReady, StateFailed},            // failed only from Deploying
-		{StateChecking, StateCleaning},       // must return to Ready first
-		{StateFrozen, StateDeploying},        // no re-deploy
-		{StateDone, StateReady},              // terminal
-		{StateDone, StateCleaning},           // terminal
-		{StateRejected, StateDeploying},      // terminal
-		{StateFailed, StateReady},            // can't recover, only cleanup
-		{StatePendingProject, StateReady},    // skip deploy
-		{StateReady, StateReady},             // identity
+		{StatePendingQuota, StateDeploying}, // must go via PendingProject
+		{StatePendingQuota, StateReady},     // skip deploy
+		{StateDeploying, StateFrozen},       // can't freeze before ready
+		{StateDeploying, StateCleaning},     // must go via Failed
+		{StateReady, StateRejected},         // rejected is only for pre-deploy
+		{StateReady, StateFailed},           // failed only from Deploying
+		{StateChecking, StateCleaning},      // must return to Ready first
+		{StateFrozen, StateDeploying},       // no re-deploy
+		{StateDone, StateReady},             // terminal
+		{StateDone, StateCleaning},          // terminal
+		{StateRejected, StateDeploying},     // terminal
+		{StateFailed, StateReady},           // can't recover, only cleanup
+		{StatePendingProject, StateReady},   // skip deploy
+		{StateReady, StateReady},            // identity
 	}
 
 	for _, tc := range illegal {

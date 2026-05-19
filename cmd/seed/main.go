@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -90,7 +91,8 @@ type projectRow struct {
 }
 
 func readCSV(path string) ([]projectRow, error) {
-	f, err := os.Open(path) //nolint:gosec // CLI tool, path comes from operator
+	// #nosec G304 -- CLI tool: the operator supplies the CSV path via --csv flag.
+	f, err := os.Open(filepath.Clean(path))
 	if err != nil {
 		return nil, err
 	}

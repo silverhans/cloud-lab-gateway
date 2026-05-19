@@ -32,9 +32,9 @@ type Resource interface {
 
 // LabResource is the owning context for any lab-related action.
 type LabResource struct {
-	LabID       shared.LabInstanceID
-	OwnerID     shared.UserID
-	CourseID    shared.CourseID
+	LabID    shared.LabInstanceID
+	OwnerID  shared.UserID
+	CourseID shared.CourseID
 }
 
 func (LabResource) ResourceKind() string { return "lab_instance" }
@@ -51,9 +51,9 @@ func (GlobalAdminResource) ResourceKind() string { return "admin" }
 
 // Subject is the identity asking to perform Action.
 type Subject struct {
-	UserID       shared.UserID
-	Role         Role
-	CourseRoles  map[shared.CourseID]CourseRole // populated by app layer
+	UserID      shared.UserID
+	Role        Role
+	CourseRoles map[shared.CourseID]CourseRole // populated by app layer
 }
 
 // Policy decides authorisation. Pure function with no I/O at the domain layer;
