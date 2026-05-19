@@ -1,0 +1,223 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.22.x"
+  NODE_VERSION: "20"
+  GITLEAKS_VERSION: "8.18.4"
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Fast feedback first: formatting / lint / vet. If this is red, nothing
+  # else matters, and you find out in <60s.
+  # ──────────────────────────────────────────────────────────────────────────
+  go-lint:
+    name: Go lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: gofmt
+        run: |
+          out=$(gofmt -l -s .)
+          if [ -n "$out" ]; then
+            echo "::error::gofmt would reformat these files:"
+            echo "$out"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.59.1
+          args: --timeout=5m
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Security & supply-chain
+  # ──────────────────────────────────────────────────────────────────────────
+  go-security:
+    name: Go security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: gosec
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.20.0
+          gosec -severity medium -confidence medium -quiet ./...
+
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  gitleaks:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks
+        run: |
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+      - name: Scan
+        run: /tmp/gitleaks detect --no-banner --redact --source=.
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Unit tests (no infra needed thanks to inmem adapters)
+  # ──────────────────────────────────────────────────────────────────────────
+  go-test:
+    name: Go unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: go build (sanity)
+        run: go build ./...
+      - name: go test (race + count=1)
+        run: go test -race -count=1 -timeout=180s ./...
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Integration tests against real Postgres + Redis services. Only runs
+  # tests tagged with `//go:build integration` so unit tests aren't double-
+  # counted.
+  # ──────────────────────────────────────────────────────────────────────────
+  go-integration:
+    name: Go integration tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: clg
+          POSTGRES_PASSWORD: clg
+          POSTGRES_DB: clg
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Install goose
+        run: go install github.com/pressly/goose/v3/cmd/goose@v3.20.0
+
+      - name: Run migrations
+        env:
+          PG_DSN: postgres://clg:clg@localhost:5432/clg?sslmode=disable
+        run: goose -dir migrations postgres "$PG_DSN" up
+
+      - name: Integration tests
+        env:
+          PG_DSN: postgres://clg:clg@localhost:5432/clg?sslmode=disable
+          REDIS_ADDR: localhost:6379
+        run: |
+          # Skip gracefully when no integration tests exist yet.
+          if ! grep -rlE '//go:build integration' --include='*.go' . >/dev/null; then
+            echo "No integration-tagged tests found — skipping."
+            exit 0
+          fi
+          go test -tags=integration -race -count=1 -timeout=600s ./...
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Frontend: typecheck + production build
+  # ──────────────────────────────────────────────────────────────────────────
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install deps
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Production build
+        run: npm run build
+
+      - name: Report bundle size
+        run: |
+          echo "## Frontend bundle" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          du -h dist/assets/*.js dist/assets/*.css 2>/dev/null | sort -hr >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Dockerfile lint (hadolint)
+  # ──────────────────────────────────────────────────────────────────────────
+  dockerfile-lint:
+    name: Dockerfile lint
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dockerfile:
+          - deployments/Dockerfile.gateway
+          - deployments/Dockerfile.worker
+          - deployments/Dockerfile.frontend
+          - deployments/Dockerfile.migrate
+          - deployments/Dockerfile.moodle-emulator
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: ${{ matrix.dockerfile }}
+          failure-threshold: warning
