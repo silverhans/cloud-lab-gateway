@@ -1,0 +1,8 @@
+.git
+.env
+.env.*
+**/node_modules
+**/dist
+**/.vite
+**/*.tsbuildinfo
+web/src/lib/api.gen.ts

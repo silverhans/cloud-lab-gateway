@@ -124,8 +124,8 @@ services:
 
   frontend:
     build:
-      context: ../web
-      dockerfile: ../deployments/Dockerfile.frontend
+      context: ..
+      dockerfile: deployments/Dockerfile.frontend
     networks: [backend]
     expose: ["80"]
     <<: *restart
