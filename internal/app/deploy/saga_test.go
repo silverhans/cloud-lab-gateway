@@ -192,6 +192,14 @@ func TestRun_HappyPath(t *testing.T) {
 		len(got.KIResources.FloatingIPs) == 0 || got.KIResources.KeypairName == "" {
 		t.Errorf("KIResources not fully populated: %+v", got.KIResources)
 	}
+	// Lab stand #3 is a five-machine topology — the saga must boot every VM
+	// and attach a floating IP to each so the Ansible checker can reach it.
+	if n := len(got.KIResources.ServerIDs); n != 5 {
+		t.Errorf("ServerIDs count = %d, want 5 (lab stand #3 topology)", n)
+	}
+	if n := len(got.KIResources.FloatingIPs); n != 5 {
+		t.Errorf("FloatingIPs count = %d, want 5", n)
+	}
 	if got.CheckerSSHKeySecretID == nil {
 		t.Error("checker ssh key secret not set")
 	}

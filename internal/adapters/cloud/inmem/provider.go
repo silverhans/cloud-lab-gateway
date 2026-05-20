@@ -378,17 +378,20 @@ func (p *Provider) nextID(prefix string) string {
 	return fmt.Sprintf("%s-%06d", prefix, p.seq)
 }
 
-// requestFromFlavor maps common flavor names to ResourceRequest. Unknown
-// flavors get a conservative default.
+// requestFromFlavor maps common OpenStack (m1.*) and КИ (start/small/medium/
+// large) flavor names to a ResourceRequest. Unknown flavors get a
+// conservative default.
 func requestFromFlavor(flavor string) shared.ResourceRequest {
 	switch flavor {
 	case "m1.tiny":
 		return shared.ResourceRequest{VCPUs: 1, RAMMB: 512, DiskGB: 1}
-	case "m1.small":
+	case "start": // КИ: 1 ЦП / 1 ГБ
+		return shared.ResourceRequest{VCPUs: 1, RAMMB: 1024, DiskGB: 10}
+	case "m1.small", "small": // КИ small: 1 ЦП / 2 ГБ
 		return shared.ResourceRequest{VCPUs: 1, RAMMB: 2048, DiskGB: 20}
-	case "m1.medium":
+	case "m1.medium", "medium": // КИ medium: 2 ЦП / 4 ГБ
 		return shared.ResourceRequest{VCPUs: 2, RAMMB: 4096, DiskGB: 40}
-	case "m1.large":
+	case "m1.large", "large": // КИ large: 4 ЦП / 8 ГБ
 		return shared.ResourceRequest{VCPUs: 4, RAMMB: 8192, DiskGB: 80}
 	default:
 		return shared.ResourceRequest{VCPUs: 1, RAMMB: 2048, DiskGB: 20}
