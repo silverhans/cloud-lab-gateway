@@ -12,12 +12,25 @@ import (
 
 type Querier interface {
 	AllocateOneFreeProject(ctx context.Context, arg AllocateOneFreeProjectParams) (Project, error)
+	CreateLabInstance(ctx context.Context, arg CreateLabInstanceParams) error
+	EnrollCourseUser(ctx context.Context, arg EnrollCourseUserParams) error
+	FindActiveLabByStudentAndCourse(ctx context.Context, arg FindActiveLabByStudentAndCourseParams) (LabInstance, error)
+	GetCourseByExternalID(ctx context.Context, externalID string) (Course, error)
+	GetCourseByID(ctx context.Context, id uuid.UUID) (Course, error)
+	GetLabInstanceByID(ctx context.Context, id uuid.UUID) (LabInstance, error)
 	GetProjectByID(ctx context.Context, id uuid.UUID) (Project, error)
+	GetQuotaCache(ctx context.Context) (GetQuotaCacheRow, error)
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
 	InsertOutbox(ctx context.Context, arg InsertOutboxParams) error
+	ListPendingCleanupLabs(ctx context.Context, arg ListPendingCleanupLabsParams) ([]LabInstance, error)
+	ListPendingUnfreezeLabs(ctx context.Context, arg ListPendingUnfreezeLabsParams) ([]LabInstance, error)
 	ListProjectsByDomain(ctx context.Context, arg ListProjectsByDomainParams) ([]Project, error)
+	QueryAuditEvents(ctx context.Context, arg QueryAuditEventsParams) ([]AuditEvent, error)
 	SeedInsertProject(ctx context.Context, arg SeedInsertProjectParams) (int64, error)
+	UpdateLabInstance(ctx context.Context, arg UpdateLabInstanceParams) (LabInstance, error)
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
+	UpsertCourse(ctx context.Context, arg UpsertCourseParams) error
+	UpsertQuotaCache(ctx context.Context, snapshot []byte) error
 }
 
 var _ Querier = (*Queries)(nil)
