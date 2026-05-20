@@ -14,8 +14,10 @@ permissions:
   contents: read
 
 env:
-  # Pinned to 1.25.x to match go.mod and avoid setup-go pulling "stable"
-  # Go 1.26.x before linters have caught up with that toolchain.
+  # Pinned to 1.25.x to match go.mod. The `go 1.25.0` directive is not a
+  # free choice: gophercloud/v2 v2.12.0 (used by the КИ adapter) requires
+  # it, and `go mod tidy` propagates that minimum. Tooling is pinned to
+  # versions that speak Go 1.25 — see the gosec step.
   GO_VERSION: "1.25.x"
   NODE_VERSION: "20"
   GITLEAKS_VERSION: "8.18.4"
@@ -82,7 +84,11 @@ jobs:
 
       - name: gosec
         run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@v2.21.4
+          # @latest, not a pin: gosec v2.21.4 drags in golang.org/x/tools
+          # @v0.25.0 which fails to compile on Go 1.25 ("invalid array
+          # length" in tokeninternal). The latest gosec ships an x/tools
+          # new enough for the toolchain go.mod forces on us.
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
           # severity=high: gosec's deep call-graph analysis at medium severity
           # produces noise (every http.Server.ListenAndServe → net.Listen chain
           # gets flagged). HIGH catches real issues (hardcoded creds, weak
