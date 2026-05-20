@@ -32,3 +32,8 @@ func (id ProjectID) String() string     { return uuid.UUID(id).String() }
 func (id UserID) String() string        { return uuid.UUID(id).String() }
 func (id CourseID) String() string      { return uuid.UUID(id).String() }
 func (id CheckRunID) String() string    { return uuid.UUID(id).String() }
+func (id LabTemplateID) String() string { return uuid.UUID(id).String() }
+func (id CheckTemplate) String() string { return uuid.UUID(id).String() }
+func (id EnrollmentID) String() string  { return uuid.UUID(id).String() }
+func (id AuditEventID) String() string  { return uuid.UUID(id).String() }
+func (id SecretID) String() string      { return uuid.UUID(id).String() }

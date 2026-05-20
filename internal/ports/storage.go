@@ -97,6 +97,7 @@ type UserRepo interface {
 
 // CourseRepo persists Courses and Enrollments.
 type CourseRepo interface {
+	GetByID(ctx context.Context, id shared.CourseID) (*identity.Course, error)
 	GetByExternalID(ctx context.Context, externalID string) (*identity.Course, error)
 	Upsert(ctx context.Context, tx Tx, c *identity.Course) error
 	Enroll(ctx context.Context, tx Tx, e identity.Enrollment) error
