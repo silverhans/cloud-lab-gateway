@@ -18,7 +18,6 @@ coverage.html
 .DS_Store
 
 # generated
-internal/adapters/httpapi/generated.go
 web/dist/
 web/node_modules/
 
