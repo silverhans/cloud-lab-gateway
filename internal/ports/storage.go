@@ -21,7 +21,7 @@ type UnitOfWork interface {
 // Tx is a marker interface; concrete adapters expose typed accessors.
 // Domain code should never type-assert this — pass it to the repo methods.
 type Tx interface {
-	private()
+	Private()
 }
 
 // PoolRepo manages persistence and atomic allocation of Project aggregates.

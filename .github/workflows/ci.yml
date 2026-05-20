@@ -14,17 +14,9 @@ permissions:
   contents: read
 
 env:
-  # Pinned to 1.23.x specifically (not "stable" or "1.22.x"):
-  #   - 1.22.x is unpatched against the 2026 stdlib CVE wave (TLS 1.3 KeyUpdate,
-  #     crypto/x509 chain building, os.Root escape, …). govulncheck flags
-  #     six advisories on it.
-  #   - "stable" gives us 1.26.x which the current golangci-lint (v1.62.2,
-  #     compiled against Go 1.23) and gosec (v2.21.4) cannot parse — they
-  #     trip on `file requires newer Go version go1.26` typecheck errors.
-  #   - 1.23.x is the compromise: tooling speaks it natively and most 2026
-  #     CVEs have been backported there. Remaining advisories run as
-  #     non-blocking warnings (see the govulncheck step).
-  GO_VERSION: "1.23.x"
+  # Pinned to 1.25.x to match go.mod and avoid setup-go pulling "stable"
+  # Go 1.26.x before linters have caught up with that toolchain.
+  GO_VERSION: "1.25.x"
   NODE_VERSION: "20"
   GITLEAKS_VERSION: "8.18.4"
 
