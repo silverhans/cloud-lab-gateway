@@ -1,0 +1,47 @@
+---
+- name: Linux baseline checks
+  hosts: target
+  gather_facts: true
+  become: false
+  vars:
+    expected_user: root
+    expected_package: bash
+    expected_file_path: /etc/os-release
+    expected_file_contains: ID=
+    expected_service: ssh
+
+  tasks:
+    - name: Collect package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Collect service facts
+      ansible.builtin.service_facts:
+
+    - name: Read expected user
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ expected_user }}"
+
+    - name: Check expected file exists
+      ansible.builtin.stat:
+        path: "{{ expected_file_path }}"
+      register: expected_file_stat
+
+    - name: Read expected file content
+      ansible.builtin.slurp:
+        src: "{{ expected_file_path }}"
+      register: expected_file_content
+      when: expected_file_stat.stat.exists
+
+    - name: Assert Linux baseline expectations
+      ansible.builtin.assert:
+        that:
+          - expected_user in ansible_facts.getent_passwd
+          - expected_package in ansible_facts.packages
+          - expected_file_stat.stat.exists
+          - expected_file_contains in (expected_file_content.content | default('') | b64decode)
+          - expected_service in ansible_facts.services or (expected_service + '.service') in ansible_facts.services
+          - ansible_facts.services.get(expected_service, ansible_facts.services.get(expected_service + '.service', {})).state == 'running'
+        fail_msg: "Linux baseline check failed for {{ inventory_hostname }}"
+        success_msg: "Linux baseline check passed for {{ inventory_hostname }}"

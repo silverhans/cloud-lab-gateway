@@ -1,0 +1,49 @@
+---
+- name: Nginx configuration checks
+  hosts: target
+  gather_facts: true
+  become: false
+  vars:
+    nginx_package: nginx
+    nginx_service: nginx
+    nginx_host: 127.0.0.1
+    nginx_port: 80
+    nginx_marker_file: /etc/nginx/nginx.conf
+    nginx_marker: nginx
+
+  tasks:
+    - name: Collect package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Collect service facts
+      ansible.builtin.service_facts:
+
+    - name: Check nginx listens on port
+      ansible.builtin.wait_for:
+        host: "{{ nginx_host }}"
+        port: "{{ nginx_port }}"
+        state: started
+        timeout: 5
+
+    - name: Check nginx marker file exists
+      ansible.builtin.stat:
+        path: "{{ nginx_marker_file }}"
+      register: nginx_marker_stat
+
+    - name: Read nginx marker file
+      ansible.builtin.slurp:
+        src: "{{ nginx_marker_file }}"
+      register: nginx_marker_content
+      when: nginx_marker_stat.stat.exists
+
+    - name: Assert nginx expectations
+      ansible.builtin.assert:
+        that:
+          - nginx_package in ansible_facts.packages
+          - nginx_service in ansible_facts.services or (nginx_service + '.service') in ansible_facts.services
+          - ansible_facts.services.get(nginx_service, ansible_facts.services.get(nginx_service + '.service', {})).state == 'running'
+          - nginx_marker_stat.stat.exists
+          - nginx_marker in (nginx_marker_content.content | default('') | b64decode)
+        fail_msg: "Nginx configuration check failed for {{ inventory_hostname }}"
+        success_msg: "Nginx configuration check passed for {{ inventory_hostname }}"
