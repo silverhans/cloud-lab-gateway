@@ -30,6 +30,29 @@ lands, because it consumes the PoolRepo + UnitOfWork shipped there.
 | [B1.1_frontend_skeleton.md](B1.1_frontend_skeleton.md) | — (independent) | 2-3 h |
 | [B1.2_moodle_emulator.md](B1.2_moodle_emulator.md) | — (independent) | 2-3 h |
 
+## Batch 2 — adapters
+
+| File | Stream | Depends on | Est. effort |
+|---|---|---|---|
+| [A2.4_pgxrepo_repos.md](A2.4_pgxrepo_repos.md) | A | A2.2 | 3-4 h |
+| [A4.1_ansible_runner.md](A4.1_ansible_runner.md) | A | — (independent) | 3-4 h |
+
+## Batch 3 — close the run-for-real gaps
+
+The deploy + cleanup sagas, the queue adapter and the core repos are merged.
+These three finish the path to a working end-to-end deploy. `A2.5` and `A2.6`
+are independent backend tasks; `B1.3` is the HTTP entry point.
+
+| File | Stream | Depends on | Est. effort |
+|---|---|---|---|
+| [A2.5_secrets_envkek.md](A2.5_secrets_envkek.md) | A | — (independent) | 3-4 h |
+| [A2.6_deploy_step_repo.md](A2.6_deploy_step_repo.md) | A | A2.4 merged | 1-2 h |
+| [B1.3_httpapi_foundation.md](B1.3_httpapi_foundation.md) | B | — (independent) | 4-5 h |
+
+> **sqlc conflict:** `A2.5` and `A2.6` both regenerate
+> `internal/adapters/storage/sqlcgen/`. Whichever PR merges second rebases on
+> `main` and re-runs `make gen-sqlc`. Hand-written code never conflicts.
+
 ## Workflow for each Codex run
 
 1. Pull latest `main`: `git pull origin main`

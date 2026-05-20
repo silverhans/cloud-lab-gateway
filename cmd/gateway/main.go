@@ -32,6 +32,11 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
+	"github.com/cloud-lab-gateway/gateway/internal/adapters/httpapi"
+	queueasynq "github.com/cloud-lab-gateway/gateway/internal/adapters/queue/asynq"
+	"github.com/cloud-lab-gateway/gateway/internal/adapters/storage/pgxrepo"
+	applab "github.com/cloud-lab-gateway/gateway/internal/app/lab"
+	"github.com/cloud-lab-gateway/gateway/pkg/clock"
 	"github.com/cloud-lab-gateway/gateway/pkg/config"
 	"github.com/cloud-lab-gateway/gateway/pkg/logger"
 )
@@ -133,6 +138,24 @@ func runServe() error {
 	}
 	defer func() { _ = rdb.Close() }()
 
+	taskQueue := queueasynq.NewClient(cfg.Redis.Addr)
+	defer func() { _ = taskQueue.Close() }()
+
+	clk := clock.System{}
+	labDeps := applab.Deps{
+		UoW:               pgxrepo.NewUoW(pool),
+		Pool:              pgxrepo.NewPoolRepo(pool),
+		Lab:               pgxrepo.NewLabRepo(pool),
+		Courses:           pgxrepo.NewCourseRepo(pool),
+		Audit:             pgxrepo.NewAuditRepo(pool),
+		QuotaCache:        pgxrepo.NewQuotaCacheRepo(pool, clk),
+		Queue:             taskQueue,
+		Clock:             clk,
+		Logger:            log,
+		QuotaThresholdPct: cfg.Quota.ThresholdPct,
+		QuotaMaxAge:       time.Duration(cfg.Quota.CacheTTLSeconds*2) * time.Second,
+	}
+
 	router := chi.NewRouter()
 	router.Use(
 		middleware.RequestID,
@@ -142,8 +165,13 @@ func runServe() error {
 	)
 	mountHealth(router, pool, rdb)
 
+	router.Mount("/api/v1", httpapi.NewMux(httpapi.Deps{
+		Lab:           labDeps,
+		Logger:        log,
+		DevMode:       os.Getenv("CLG_ENV") != "production",
+		SessionSecret: cfg.JWT.Secret,
+	}))
 	// Application routes are wired here by downstream PRs.
-	// router.Mount("/api/v1/", httpapi.NewMux(deps))
 	// router.Mount("/sse/", sse.NewMux(broker))
 	// router.Mount("/lti/", lti13.NewMux(deps))
 

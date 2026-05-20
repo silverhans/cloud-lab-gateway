@@ -48,10 +48,14 @@ gen: gen-sqlc gen-openapi ## Run all code generators.
 .PHONY: gen-sqlc
 gen-sqlc: ## Generate type-safe SQL bindings.
 	$(SQLC) generate
+	@if [ -f internal/adapters/storage/sqlcgen/secrets.sql.go ]; then \
+		perl -0pi -e 's|\nconst deleteEncryptedSecret|\n// #nosec G101 -- generated SQL references encrypted_secrets table; no credentials.\nconst deleteEncryptedSecret|; s|\nconst getEncryptedSecretByID|\n// #nosec G101 -- generated SQL references encrypted_secrets table; no credentials.\nconst getEncryptedSecretByID|; s|\nconst insertEncryptedSecret|\n// #nosec G101 -- generated SQL references encrypted_secrets table; no credentials.\nconst insertEncryptedSecret|' internal/adapters/storage/sqlcgen/secrets.sql.go; \
+	fi
 
 .PHONY: gen-openapi
 gen-openapi: ## Generate HTTP handlers and types from OpenAPI.
 	$(OPENAPI_GEN) --config=api/oapi-codegen.yaml api/openapi.yaml
+	@perl -0pi -e 's#(// Code generated.*?DO NOT EDIT\.\n)#$$1//lint:file-ignore SA1029 oapi-codegen emits string context keys for security scopes.\n#s unless /lint:file-ignore SA1029/' internal/adapters/httpapi/generated.go
 
 ##@ Build
 

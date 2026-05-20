@@ -21,6 +21,16 @@ const (
 	stepInitialCheck     stepName = "initial_check"
 )
 
+// Server metadata keys the deploy saga stamps on every booted VM. КИ stores
+// them as instance metadata; the cloud adapter and the Ansible checker read
+// them back. metaKeyFixedIP is an interim carrier for the VM's in-network
+// address until ports.ServerSpec gains a first-class fixed-IP field — that
+// is a coordinated ports change (see CLAUDE.md rule 1).
+const (
+	metaKeyRole    = "clg.role"
+	metaKeyFixedIP = "clg.fixed_ip"
+)
+
 // deployState threads provider-side resource handles through the saga. It is
 // JSON-serialised into each step record's Result so a resumed saga can
 // reconstruct what earlier steps already produced.
@@ -101,6 +111,10 @@ func runBootVM(ctx context.Context, d Deps, lab *labdomain.LabInstance, st *depl
 			FlavorRef:   vm.Flavor,
 			NetworkID:   st.NetworkID,
 			KeypairName: st.KeypairName,
+			Metadata: map[string]string{
+				metaKeyRole:    vm.Role,
+				metaKeyFixedIP: vm.IP,
+			},
 		})
 		if err != nil {
 			return fmt.Errorf("boot server %s: %w", vm.Name, err)
