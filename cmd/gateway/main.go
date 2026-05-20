@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -61,19 +62,30 @@ func newHealthcheckCmd() *cobra.Command {
 		Use:   "healthcheck",
 		Short: "Probe /healthz on the local server (exit 0 if healthy)",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			addr := os.Getenv("CLG_BIND_ADDR")
-			if addr == "" {
-				addr = "127.0.0.1:8080"
+			// Probe the loopback interface only. CLG_BIND_ADDR may be
+			// "0.0.0.0:8080" which is a valid listen address but not a valid
+			// dial target — so we extract just the port and always dial
+			// 127.0.0.1. Default to 8080 when the port can't be determined.
+			port := "8080"
+			if _, p, err := net.SplitHostPort(os.Getenv("CLG_BIND_ADDR")); err == nil && p != "" {
+				port = p
 			}
-			url := "http://" + addr + "/healthz"
+			url := "http://127.0.0.1:" + port + "/healthz"
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
-			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+			// #nosec G704 -- not SSRF: this is a CLI liveness probe of our own
+			// loopback server. The URL is http://127.0.0.1:<port>/healthz where
+			// <port> is a numeric port from our own deployment config, and the
+			// request is never derived from or forwarded to external input.
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+			if err != nil {
+				return err
+			}
 			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				return err
 			}
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			if resp.StatusCode != http.StatusOK {
 				return fmt.Errorf("healthz returned %d", resp.StatusCode)
 			}
