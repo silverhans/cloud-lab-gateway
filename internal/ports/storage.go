@@ -59,9 +59,15 @@ type LabRepo interface {
 }
 
 // DeployStepRepo persists the saga state of the deploy workflow.
+//
+// Methods take no Tx: deploy-step records are written between cloud calls
+// (BootServer, WaitForActive) that may take tens of seconds, so they can
+// never share one database transaction. Each call is its own short write.
 type DeployStepRepo interface {
-	GetOrInit(ctx context.Context, tx Tx, labID shared.LabInstanceID, step string) (DeployStep, error)
-	Save(ctx context.Context, tx Tx, s DeployStep) error
+	// GetOrInit returns the existing record for (labID, step), or a fresh
+	// pending record if none exists yet.
+	GetOrInit(ctx context.Context, labID shared.LabInstanceID, step string) (DeployStep, error)
+	Save(ctx context.Context, s DeployStep) error
 	ListByLab(ctx context.Context, labID shared.LabInstanceID) ([]DeployStep, error)
 }
 
