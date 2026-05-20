@@ -73,15 +73,16 @@ func newHealthcheckCmd() *cobra.Command {
 			url := "http://127.0.0.1:" + port + "/healthz"
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
-			// #nosec G704 -- not SSRF: this is a CLI liveness probe of our own
-			// loopback server. The URL is http://127.0.0.1:<port>/healthz where
-			// <port> is a numeric port from our own deployment config, and the
-			// request is never derived from or forwarded to external input.
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+			// Not SSRF: this is a CLI liveness probe of our own loopback
+			// server. The URL is http://127.0.0.1:<port>/healthz where <port>
+			// is a numeric port from our own deployment config, never derived
+			// from or forwarded to external input. gosec G704 is suppressed
+			// on the request-construction and request-execution lines below.
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody) // #nosec G704
 			if err != nil {
 				return err
 			}
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := http.DefaultClient.Do(req) // #nosec G704
 			if err != nil {
 				return err
 			}
