@@ -13,15 +13,20 @@ import (
 type Querier interface {
 	AllocateOneFreeProject(ctx context.Context, arg AllocateOneFreeProjectParams) (Project, error)
 	CreateLabInstance(ctx context.Context, arg CreateLabInstanceParams) error
+	DeleteEncryptedSecret(ctx context.Context, id uuid.UUID) error
 	EnrollCourseUser(ctx context.Context, arg EnrollCourseUserParams) error
 	FindActiveLabByStudentAndCourse(ctx context.Context, arg FindActiveLabByStudentAndCourseParams) (LabInstance, error)
 	GetCourseByExternalID(ctx context.Context, externalID string) (Course, error)
 	GetCourseByID(ctx context.Context, id uuid.UUID) (Course, error)
+	GetDeployStep(ctx context.Context, arg GetDeployStepParams) (LabDeployStep, error)
+	GetEncryptedSecretByID(ctx context.Context, id uuid.UUID) (EncryptedSecret, error)
 	GetLabInstanceByID(ctx context.Context, id uuid.UUID) (LabInstance, error)
 	GetProjectByID(ctx context.Context, id uuid.UUID) (Project, error)
 	GetQuotaCache(ctx context.Context) (GetQuotaCacheRow, error)
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
+	InsertEncryptedSecret(ctx context.Context, arg InsertEncryptedSecretParams) (EncryptedSecret, error)
 	InsertOutbox(ctx context.Context, arg InsertOutboxParams) error
+	ListDeployStepsByLab(ctx context.Context, labInstanceID uuid.UUID) ([]LabDeployStep, error)
 	ListPendingCleanupLabs(ctx context.Context, arg ListPendingCleanupLabsParams) ([]LabInstance, error)
 	ListPendingUnfreezeLabs(ctx context.Context, arg ListPendingUnfreezeLabsParams) ([]LabInstance, error)
 	ListProjectsByDomain(ctx context.Context, arg ListProjectsByDomainParams) ([]Project, error)
@@ -30,6 +35,7 @@ type Querier interface {
 	UpdateLabInstance(ctx context.Context, arg UpdateLabInstanceParams) (LabInstance, error)
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpsertCourse(ctx context.Context, arg UpsertCourseParams) error
+	UpsertDeployStep(ctx context.Context, arg UpsertDeployStepParams) error
 	UpsertQuotaCache(ctx context.Context, snapshot []byte) error
 }
 
