@@ -1,0 +1,29 @@
+{
+  "plays": [
+    {
+      "tasks": [
+        {
+          "task": {"name": "Gather package facts"},
+          "hosts": {
+            "vm-1": {"changed": false, "failed": false, "unreachable": false, "skipped": false}
+          }
+        },
+        {
+          "task": {"name": "Create marker for check"},
+          "hosts": {
+            "vm-1": {"changed": true, "failed": false, "unreachable": false, "skipped": false, "msg": "marker already present"}
+          }
+        },
+        {
+          "task": {"name": "Assert nginx is installed"},
+          "hosts": {
+            "vm-1": {"changed": false, "failed": false, "unreachable": false, "skipped": false, "msg": "All assertions passed"}
+          }
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "vm-1": {"ok": 3, "changed": 1, "failed": 0, "unreachable": 0, "skipped": 0}
+  }
+}
