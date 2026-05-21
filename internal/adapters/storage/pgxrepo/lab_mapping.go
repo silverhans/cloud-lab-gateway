@@ -166,6 +166,35 @@ func nullableUserID(id *shared.UserID) uuid.NullUUID {
 	return uuid.NullUUID{UUID: uuid.UUID(*id), Valid: true}
 }
 
+func nullableCourseID(id *shared.CourseID) uuid.NullUUID {
+	if id == nil {
+		return uuid.NullUUID{}
+	}
+	return uuid.NullUUID{UUID: uuid.UUID(*id), Valid: true}
+}
+
+func courseIDs(ids []shared.CourseID) []uuid.UUID {
+	if len(ids) == 0 {
+		return []uuid.UUID{}
+	}
+	out := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, uuid.UUID(id))
+	}
+	return out
+}
+
+func labStates(states []lab.State) []string {
+	if len(states) == 0 {
+		return []string{}
+	}
+	out := make([]string, 0, len(states))
+	for _, state := range states {
+		out = append(out, string(state))
+	}
+	return out
+}
+
 func userIDFromNull(id uuid.NullUUID) *shared.UserID {
 	if !id.Valid {
 		return nil

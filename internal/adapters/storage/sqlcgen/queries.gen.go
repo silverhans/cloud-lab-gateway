@@ -12,10 +12,16 @@ import (
 
 type Querier interface {
 	AllocateOneFreeProject(ctx context.Context, arg AllocateOneFreeProjectParams) (Project, error)
+	BumpOutboxAttempts(ctx context.Context, id int64) error
+	CreateCheckRun(ctx context.Context, arg CreateCheckRunParams) error
 	CreateLabInstance(ctx context.Context, arg CreateLabInstanceParams) error
+	DeleteCheckRunSteps(ctx context.Context, checkRunID uuid.UUID) error
 	DeleteEncryptedSecret(ctx context.Context, id uuid.UUID) error
 	EnrollCourseUser(ctx context.Context, arg EnrollCourseUserParams) error
+	FetchOutbox(ctx context.Context, arg FetchOutboxParams) ([]FetchOutboxRow, error)
 	FindActiveLabByStudentAndCourse(ctx context.Context, arg FindActiveLabByStudentAndCourseParams) (LabInstance, error)
+	GetCheckRunByID(ctx context.Context, id uuid.UUID) (CheckRun, error)
+	GetCheckTemplateByID(ctx context.Context, id uuid.UUID) (CheckTemplate, error)
 	GetCourseByExternalID(ctx context.Context, externalID string) (Course, error)
 	GetCourseByID(ctx context.Context, id uuid.UUID) (Course, error)
 	GetDeployStep(ctx context.Context, arg GetDeployStepParams) (LabDeployStep, error)
@@ -26,16 +32,24 @@ type Querier interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserByLTI(ctx context.Context, arg GetUserByLTIParams) (User, error)
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
+	InsertCheckRunStep(ctx context.Context, arg InsertCheckRunStepParams) error
 	InsertEncryptedSecret(ctx context.Context, arg InsertEncryptedSecretParams) (EncryptedSecret, error)
 	InsertOutbox(ctx context.Context, arg InsertOutboxParams) error
 	InsertUserFromLaunch(ctx context.Context, arg InsertUserFromLaunchParams) (User, error)
+	ListCheckRunSteps(ctx context.Context, checkRunID uuid.UUID) ([]CheckRunStep, error)
+	ListCheckRunsByLab(ctx context.Context, arg ListCheckRunsByLabParams) ([]CheckRun, error)
 	ListCourseRolesByUser(ctx context.Context, userID uuid.UUID) ([]ListCourseRolesByUserRow, error)
 	ListDeployStepsByLab(ctx context.Context, labInstanceID uuid.UUID) ([]LabDeployStep, error)
+	ListLabInstances(ctx context.Context, arg ListLabInstancesParams) ([]LabInstance, error)
 	ListPendingCleanupLabs(ctx context.Context, arg ListPendingCleanupLabsParams) ([]LabInstance, error)
 	ListPendingUnfreezeLabs(ctx context.Context, arg ListPendingUnfreezeLabsParams) ([]LabInstance, error)
 	ListProjectsByDomain(ctx context.Context, arg ListProjectsByDomainParams) ([]Project, error)
+	ListSettings(ctx context.Context, arg ListSettingsParams) ([]Setting, error)
+	MarkOutboxPublished(ctx context.Context, ids []int64) error
 	QueryAuditEvents(ctx context.Context, arg QueryAuditEventsParams) ([]AuditEvent, error)
+	ResolveSetting(ctx context.Context, arg ResolveSettingParams) (Setting, error)
 	SeedInsertProject(ctx context.Context, arg SeedInsertProjectParams) (int64, error)
+	UpdateCheckRun(ctx context.Context, arg UpdateCheckRunParams) error
 	UpdateLabInstance(ctx context.Context, arg UpdateLabInstanceParams) (LabInstance, error)
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateUserFromLaunch(ctx context.Context, arg UpdateUserFromLaunchParams) (User, error)
@@ -43,6 +57,7 @@ type Querier interface {
 	UpsertDeployStep(ctx context.Context, arg UpsertDeployStepParams) error
 	UpsertLTIIdentity(ctx context.Context, arg UpsertLTIIdentityParams) error
 	UpsertQuotaCache(ctx context.Context, snapshot []byte) error
+	UpsertSetting(ctx context.Context, arg UpsertSettingParams) (Setting, error)
 }
 
 var _ Querier = (*Queries)(nil)

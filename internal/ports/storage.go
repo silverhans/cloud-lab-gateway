@@ -91,6 +91,19 @@ type CheckRunRepo interface {
 	ListByLab(ctx context.Context, labID shared.LabInstanceID, limit int) ([]verify.CheckRun, error)
 }
 
+// CheckTemplateRepo resolves the trusted playbook configuration for a check.
+type CheckTemplateRepo interface {
+	GetByID(ctx context.Context, id shared.CheckTemplate) (CheckTemplate, error)
+}
+
+type CheckTemplate struct {
+	ID             shared.CheckTemplate
+	Slug           string
+	Name           string
+	PlaybookPath   string
+	TimeoutSeconds int
+}
+
 // UserRepo persists Users + LTIIdentities.
 type UserRepo interface {
 	GetByID(ctx context.Context, id shared.UserID) (*identity.User, error)

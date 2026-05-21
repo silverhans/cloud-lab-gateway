@@ -5,18 +5,30 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
+	"github.com/cloud-lab-gateway/gateway/internal/adapters/checker/ansible"
+	"github.com/cloud-lab-gateway/gateway/internal/adapters/cloud/inmem"
+	"github.com/cloud-lab-gateway/gateway/internal/adapters/cloud/openstack"
+	queueasynq "github.com/cloud-lab-gateway/gateway/internal/adapters/queue/asynq"
+	"github.com/cloud-lab-gateway/gateway/internal/adapters/secrets/envkek"
+	"github.com/cloud-lab-gateway/gateway/internal/adapters/storage/pgxrepo"
+	"github.com/cloud-lab-gateway/gateway/internal/app/cleanup"
+	"github.com/cloud-lab-gateway/gateway/internal/app/deploy"
+	"github.com/cloud-lab-gateway/gateway/internal/app/quotarefresh"
+	appverify "github.com/cloud-lab-gateway/gateway/internal/app/verify"
+	"github.com/cloud-lab-gateway/gateway/internal/ports"
+	"github.com/cloud-lab-gateway/gateway/pkg/clock"
 	"github.com/cloud-lab-gateway/gateway/pkg/config"
 	"github.com/cloud-lab-gateway/gateway/pkg/logger"
 )
@@ -73,45 +85,92 @@ func runWorker() error {
 	}
 	defer func() { _ = rdb.Close() }()
 
-	srv := asynq.NewServer(
-		asynq.RedisClientOpt{Addr: cfg.Redis.Addr},
-		asynq.Config{
-			Concurrency: 8,
-			Queues: map[string]int{
-				"deploy":  4,
-				"cleanup": 2,
-				"checks":  2,
-				"default": 1,
-			},
-			Logger: asynqZapLogger{l: log},
-			ErrorHandler: asynq.ErrorHandlerFunc(func(_ context.Context, t *asynq.Task, err error) {
-				log.Error("task failed", zap.String("type", t.Type()), zap.Error(err))
-			}),
-		},
-	)
+	cloudProvider, providerName, err := buildCloudProvider(cfg)
+	if err != nil {
+		return err
+	}
+	log.Info("cloud provider selected", zap.String("provider", providerName))
 
-	mux := asynq.NewServeMux()
-	// Task handlers are registered here from internal/app/* in downstream PRs:
-	//   mux.HandleFunc(string(ports.TaskDeployLab), deploy.NewHandler(deps).Handle)
-	//   mux.HandleFunc(string(ports.TaskCleanupLab), cleanup.NewHandler(deps).Handle)
-	//   ...
+	clk := clock.System{}
+	uow := pgxrepo.NewUoW(pool)
+	auditRepo := pgxrepo.NewAuditRepo(pool)
+	labRepo := pgxrepo.NewLabRepo(pool)
+	poolRepo := pgxrepo.NewPoolRepo(pool)
+	quotaCache := pgxrepo.NewQuotaCacheRepo(pool, clk)
+	taskQueue := queueasynq.NewClient(cfg.Redis.Addr)
+	defer func() { _ = taskQueue.Close() }()
 
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- srv.Run(mux)
-	}()
+	keyProvider, err := envkek.NewKeyProvider()
+	if err != nil {
+		return err
+	}
+	secretStore := envkek.NewStore(pool, keyProvider, auditRepo, clk)
 
-	select {
-	case <-ctx.Done():
-		log.Info("shutdown signal received")
-		srv.Shutdown()
-	case err := <-errCh:
-		if err != nil {
-			return err
-		}
+	registry := queueasynq.NewRegistry(cfg.Redis.Addr, 8, log)
+	if err := registry.Subscribe(ports.TaskDeployLab, deploy.Deps{
+		Cloud:        cloudProvider,
+		Lab:          labRepo,
+		Steps:        pgxrepo.NewDeployStepRepo(pool),
+		Secrets:      secretStore,
+		Queue:        taskQueue,
+		UoW:          uow,
+		Clock:        clk,
+		Logger:       log,
+		CleanupAfter: cfg.Lifecycle.DefaultCleanup,
+	}.HandleTask); err != nil {
+		return err
+	}
+	if err := registry.Subscribe(ports.TaskCleanupLab, cleanup.Deps{
+		Cloud:   cloudProvider,
+		Lab:     labRepo,
+		Pool:    poolRepo,
+		Secrets: secretStore,
+		UoW:     uow,
+		Clock:   clk,
+		Logger:  log,
+	}.HandleTask); err != nil {
+		return err
+	}
+	if err := registry.Subscribe(ports.TaskRefreshQuota, quotarefresh.Deps{
+		Cloud:      cloudProvider,
+		QuotaCache: quotaCache,
+		Logger:     log,
+	}.HandleTask); err != nil {
+		return err
+	}
+	if err := registry.Subscribe(ports.TaskRunCheck, appverify.Deps{
+		UoW:       uow,
+		Labs:      labRepo,
+		Runs:      pgxrepo.NewCheckRunRepo(pool),
+		Templates: pgxrepo.NewCheckTemplateRepo(pool),
+		Secrets:   secretStore,
+		Runner:    ansible.New(),
+		Clock:     clk,
+		Logger:    log,
+	}.HandleTask); err != nil {
+		return err
+	}
+
+	if err := registry.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		return err
 	}
 	log.Info("worker stopped")
 	return nil
+}
+
+func buildCloudProvider(cfg config.Config) (ports.CloudProvider, string, error) {
+	switch cfg.CloudProvider {
+	case "", "inmem":
+		return inmem.New(inmem.DefaultCapacity(), inmem.Faults{}), "inmem", nil
+	case "openstack":
+		provider, err := openstack.New(cfg.OpenStack)
+		if err != nil {
+			return nil, "", fmt.Errorf("openstack provider: %w", err)
+		}
+		return provider, "openstack", nil
+	default:
+		return nil, "", fmt.Errorf("unsupported CLG_CLOUD_PROVIDER %q", cfg.CloudProvider)
+	}
 }
 
 func openPostgres(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
@@ -138,12 +197,3 @@ func openRedis(ctx context.Context, addr string) (*redis.Client, error) {
 	}
 	return rdb, nil
 }
-
-// asynqZapLogger adapts zap to asynq's logger interface.
-type asynqZapLogger struct{ l *zap.Logger }
-
-func (a asynqZapLogger) Debug(args ...interface{}) { a.l.Sugar().Debug(args...) }
-func (a asynqZapLogger) Info(args ...interface{})  { a.l.Sugar().Info(args...) }
-func (a asynqZapLogger) Warn(args ...interface{})  { a.l.Sugar().Warn(args...) }
-func (a asynqZapLogger) Error(args ...interface{}) { a.l.Sugar().Error(args...) }
-func (a asynqZapLogger) Fatal(args ...interface{}) { a.l.Sugar().Fatal(args...) }

@@ -142,13 +142,13 @@ func (q *Queries) InsertOutbox(ctx context.Context, arg InsertOutboxParams) erro
 const listProjectsByDomain = `-- name: ListProjectsByDomain :many
 SELECT id, ki_project_id, ki_domain_id, name, state, allocated_to_lab_id, cleanup_failures, last_state_change_at, created_at
 FROM projects
-WHERE ki_domain_id = $1
+WHERE ($1::text IS NULL OR ki_domain_id = $1::text)
   AND ($2::text IS NULL OR state = $2::text)
 ORDER BY created_at, id
 `
 
 type ListProjectsByDomainParams struct {
-	KiDomainID string  `json:"ki_domain_id"`
+	KiDomainID *string `json:"ki_domain_id"`
 	State      *string `json:"state"`
 }
 

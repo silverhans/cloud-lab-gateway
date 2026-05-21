@@ -58,6 +58,16 @@ SELECT *
 FROM lab_instances
 WHERE id = $1;
 
+-- name: ListLabInstances :many
+SELECT *
+FROM lab_instances
+WHERE (sqlc.narg('student_user_id')::uuid IS NULL OR student_user_id = sqlc.narg('student_user_id')::uuid)
+  AND (sqlc.narg('course_id')::uuid IS NULL OR course_id = sqlc.narg('course_id')::uuid)
+  AND (cardinality(sqlc.arg('course_ids')::uuid[]) = 0 OR course_id = ANY(sqlc.arg('course_ids')::uuid[]))
+  AND (cardinality(sqlc.arg('states')::text[]) = 0 OR state = ANY(sqlc.arg('states')::text[]))
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg('limit');
+
 -- name: FindActiveLabByStudentAndCourse :one
 SELECT *
 FROM lab_instances

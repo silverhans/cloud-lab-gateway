@@ -9,6 +9,8 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/cloud-lab-gateway/gateway/internal/domain/identity"
+	labdomain "github.com/cloud-lab-gateway/gateway/internal/domain/lab"
 	"github.com/cloud-lab-gateway/gateway/internal/domain/shared"
 	"github.com/cloud-lab-gateway/gateway/internal/ports"
 )
@@ -22,16 +24,44 @@ type QuotaCache interface {
 	Write(ctx context.Context, snap shared.QuotaSnapshot) error
 }
 
+// LabReader is the list read-model used by lifecycle endpoints.
+type LabReader interface {
+	List(ctx context.Context, f LabListFilter) ([]labdomain.LabInstance, error)
+}
+
+type LabListFilter struct {
+	StudentUserID *shared.UserID
+	CourseID      *shared.CourseID
+	CourseIDs     []shared.CourseID
+	States        []labdomain.State
+	Limit         int
+}
+
+// Actor is the authenticated user asking to perform a lab operation.
+type Actor struct {
+	UserID      shared.UserID
+	Role        identity.Role
+	CourseRoles map[shared.CourseID]identity.CourseRole
+}
+
+type LabDetail struct {
+	Lab         *labdomain.LabInstance
+	DeploySteps []ports.DeployStep
+}
+
 // Deps bundles every collaborator the lab use cases need. It is constructed
 // once at process startup and shared (all fields are safe for concurrent use).
 type Deps struct {
 	UoW        ports.UnitOfWork
 	Pool       ports.PoolRepo
 	Lab        ports.LabRepo
+	LabReader  LabReader
+	Steps      ports.DeployStepRepo
 	Courses    ports.CourseRepo
 	Audit      ports.AuditRepo
 	QuotaCache QuotaCache
 	Queue      ports.TaskQueue
+	Secrets    ports.SecretStore
 	Clock      ports.Clock
 	Logger     *zap.Logger
 
@@ -43,6 +73,9 @@ type Deps struct {
 	// CreateLab fails closed (returns 503-mapped error) rather than deciding
 	// on data that may no longer reflect the cluster. 0 → 60s.
 	QuotaMaxAge time.Duration
+
+	DefaultCleanupAfter time.Duration
+	DefaultFreezeFor    time.Duration
 }
 
 func (d Deps) log() *zap.Logger {

@@ -99,13 +99,17 @@ func (r *PoolRepo) GetByID(ctx context.Context, id shared.ProjectID) (*pool.Proj
 
 // ListByDomain returns projects for a KI domain, optionally filtered by state.
 func (r *PoolRepo) ListByDomain(ctx context.Context, kiDomainID string, state *pool.State) ([]pool.Project, error) {
+	var domainParam *string
+	if kiDomainID != "" {
+		domainParam = &kiDomainID
+	}
 	var stateParam *string
 	if state != nil {
 		v := string(*state)
 		stateParam = &v
 	}
 	rows, err := r.q.ListProjectsByDomain(ctx, sqlcgen.ListProjectsByDomainParams{
-		KiDomainID: kiDomainID,
+		KiDomainID: domainParam,
 		State:      stateParam,
 	})
 	if err != nil {
