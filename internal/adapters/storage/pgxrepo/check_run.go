@@ -171,7 +171,7 @@ func checkRunStepParams(runID shared.CheckRunID, idx int, step verify.StepResult
 	}
 	return sqlcgen.InsertCheckRunStepParams{
 		CheckRunID: checkRunID(runID),
-		Seq:        int32(idx + 1),
+		Seq:        int32(idx + 1), // #nosec G115 -- step index, bounded by len(steps); cannot overflow int32
 		TaskName:   step.TaskName,
 		Status:     string(step.Status),
 		Expected:   expected,
