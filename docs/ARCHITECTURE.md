@@ -12,6 +12,49 @@ Cloud Lab Gateway решает пять проблем учебного проц
 4. **Гибкий жизненный цикл.** Автоудаление по таймеру (по умолчанию 2ч), режим "заморозки" (24ч для разбора инцидентов), UI для преподавателя «на лету».
 5. **Автопроверки.** Безагентный Ansible-движок для валидации конфигурации ВМ.
 
+### Как работает бэкенд
+
+Бэкенд — это два процесса: `gateway` (синхронный HTTP API) и `worker` (асинхронные саги). Напрямую они друг друга не вызывают — общаются через PostgreSQL (состояние) и Redis (очередь задач и шина событий). Быстрый HTTP-ответ отделён от долгого разворачивания стенда.
+
+```mermaid
+flowchart TD
+    student["Студент<br/>браузер"]
+    moodle["Moodle<br/>LTI 1.3"]
+
+    subgraph gw["gateway · HTTP-процесс (быстрый путь)"]
+        api["chi + OpenAPI<br/>session-auth"]
+        uc["use cases<br/>quota guard · state machines"]
+        api --> uc
+    end
+
+    pg[("PostgreSQL<br/>labs · projects · outbox · audit")]
+    redis[("Redis<br/>asynq-очередь · pub/sub")]
+
+    subgraph wk["worker · async-процесс (медленный путь)"]
+        sagas["deploy saga · cleanup saga<br/>Ansible-проверки"]
+    end
+
+    ki["Кибер Инфраструктура · OpenStack<br/>ВМ · сети · SSH-ключи"]
+
+    student -->|"REST /api/v1"| api
+    moodle -->|"LTI launch"| api
+    uc -->|"① сохранить состояние"| pg
+    uc -->|"② поставить задачу"| redis
+    redis -->|"③ забрать задачу"| sagas
+    sagas -->|"прогресс шагов"| pg
+    sagas -->|"④ создать / удалить ВМ"| ki
+    sagas -.->|"⑤ live-прогресс (SSE)"| student
+
+    classDef ext fill:#f1f5f9,stroke:#94a3b8,color:#0f172a
+    classDef proc fill:#cffafe,stroke:#06b6d4,color:#0f172a
+    classDef store fill:#e0e7ff,stroke:#6366f1,color:#0f172a
+    class student,moodle,ki ext
+    class api,uc,sagas proc
+    class pg,redis store
+```
+
+**По шагам:** ① `gateway` проходит quota guard и сохраняет `LabInstance` в Postgres → ② кладёт задачу деплоя в Redis и сразу отвечает студенту (HTTP 201) → ③ `worker` забирает задачу из очереди → ④ deploy saga создаёт ВМ, сети и ключи в КИ (5 идемпотентных шагов, прогресс пишется в Postgres) → ⑤ события саги через outbox и Redis уходят в SSE — браузер видит прогресс вживую.
+
 ## 2. Architectural principles
 
 | Принцип | Что означает | Что даёт |
