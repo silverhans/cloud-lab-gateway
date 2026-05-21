@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { adminKeys } from "@/hooks/use-admin";
+import { labsKeys } from "@/hooks/use-labs";
 import { parseSSEEvent } from "@/lib/sse";
 
 export function useLabsStream(): void {
@@ -14,12 +16,12 @@ export function useLabsStream(): void {
         if (!event) return;
 
         if ("labId" in event) {
-          queryClient.invalidateQueries({ queryKey: ["labs", event.labId] });
-          queryClient.invalidateQueries({ queryKey: ["labs"] });
+          queryClient.invalidateQueries({ queryKey: labsKeys.detail(event.labId) });
+          queryClient.invalidateQueries({ queryKey: labsKeys.all });
         }
 
         if (event.type === "quota.snapshot") {
-          queryClient.setQueryData(["quota", "latest"], event);
+          queryClient.invalidateQueries({ queryKey: adminKeys.quota });
         }
       } catch (error) {
         console.warn("Failed to parse SSE event", error);

@@ -4,11 +4,11 @@ import type { CurrentUser, Role } from "./types";
 const storageKey = "clg.demoUser";
 
 export function demoAuthEnabled(): boolean {
-  return import.meta.env.VITE_DEMO_AUTH === "1";
+  return import.meta.env.VITE_DEMO_AUTH === "true";
 }
 
 export function moodleEmulatorUrl(): string {
-  return import.meta.env.VITE_MOODLE_EMULATOR_URL ?? "http://localhost:9000";
+  return import.meta.env.VITE_MOODLE_URL ?? "http://localhost:9000";
 }
 
 export function getStoredUser(): CurrentUser | null {
