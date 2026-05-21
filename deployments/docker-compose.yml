@@ -10,6 +10,9 @@ x-app-env: &app-env
   CLG_QUOTA_THRESHOLD_PCT: ${CLG_QUOTA_THRESHOLD_PCT:-90}
   CLG_DEFAULT_CLEANUP_SECONDS: ${CLG_DEFAULT_CLEANUP_SECONDS:-7200}
   CLG_DEFAULT_FREEZE_SECONDS: ${CLG_DEFAULT_FREEZE_SECONDS:-86400}
+  LTI_JWKS_URL: ${LTI_JWKS_URL:-http://moodle-emulator:9000/jwks.json}
+  LTI_PLATFORM_ISSUER: ${LTI_PLATFORM_ISSUER:-https://moodle-emulator.local}
+  LTI_AUDIENCE: ${LTI_AUDIENCE:-cloud-lab-gateway}
   OPENSTACK_AUTH_URL: ${OPENSTACK_AUTH_URL}
   OPENSTACK_USERNAME: ${OPENSTACK_USERNAME}
   OPENSTACK_PASSWORD: ${OPENSTACK_PASSWORD}
@@ -150,7 +153,7 @@ services:
       context: ..
       dockerfile: deployments/Dockerfile.moodle-emulator
     environment:
-      EMULATOR_GATEWAY_URL: http://nginx-proxy
+      EMULATOR_GATEWAY_URL: ${EMULATOR_GATEWAY_URL:-http://localhost:8080}
       EMULATOR_LTI_KID: ${EMULATOR_LTI_KID:-emu-key-1}
     ports:
       - "${MOODLE_EMULATOR_PORT:-9000}:9000"

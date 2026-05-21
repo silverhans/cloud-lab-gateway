@@ -1,18 +1,29 @@
 import { useQuery } from "@tanstack/react-query";
 import { getStoredUser } from "@/lib/auth";
-import type { CurrentUser } from "@/lib/types";
+import type { CurrentUser, Role } from "@/lib/types";
+
+type ApiCurrentUser = {
+  id: string;
+  display_name: string;
+  email?: string | null;
+  role: string;
+};
 
 async function fetchCurrentUser(): Promise<CurrentUser | null> {
-  const stored = getStoredUser();
-  if (stored) return stored;
-
   try {
     const response = await fetch("/api/v1/auth/me", { credentials: "include" });
-    if (response.status === 401) return null;
+    if (response.status === 401) return getStoredUser();
     if (!response.ok) return null;
-    return (await response.json()) as CurrentUser;
+    const payload = (await response.json()) as ApiCurrentUser;
+    if (!isRole(payload.role)) return null;
+    return {
+      id: payload.id,
+      displayName: payload.display_name,
+      email: payload.email ?? "",
+      role: payload.role,
+    };
   } catch {
-    return null;
+    return getStoredUser();
   }
 }
 
@@ -21,4 +32,8 @@ export function useCurrentUser() {
     queryKey: ["auth", "me"],
     queryFn: fetchCurrentUser,
   });
+}
+
+function isRole(value: string): value is Role {
+  return value === "student" || value === "teacher" || value === "admin";
 }

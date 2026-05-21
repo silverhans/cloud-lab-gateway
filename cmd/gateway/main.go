@@ -33,9 +33,11 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/cloud-lab-gateway/gateway/internal/adapters/httpapi"
+	"github.com/cloud-lab-gateway/gateway/internal/adapters/lms/lti13"
 	queueasynq "github.com/cloud-lab-gateway/gateway/internal/adapters/queue/asynq"
 	"github.com/cloud-lab-gateway/gateway/internal/adapters/storage/pgxrepo"
 	applab "github.com/cloud-lab-gateway/gateway/internal/app/lab"
+	appmoodle "github.com/cloud-lab-gateway/gateway/internal/app/moodle"
 	"github.com/cloud-lab-gateway/gateway/pkg/clock"
 	"github.com/cloud-lab-gateway/gateway/pkg/config"
 	"github.com/cloud-lab-gateway/gateway/pkg/logger"
@@ -142,11 +144,13 @@ func runServe() error {
 	defer func() { _ = taskQueue.Close() }()
 
 	clk := clock.System{}
+	uow := pgxrepo.NewUoW(pool)
+	courseRepo := pgxrepo.NewCourseRepo(pool)
 	labDeps := applab.Deps{
-		UoW:               pgxrepo.NewUoW(pool),
+		UoW:               uow,
 		Pool:              pgxrepo.NewPoolRepo(pool),
 		Lab:               pgxrepo.NewLabRepo(pool),
-		Courses:           pgxrepo.NewCourseRepo(pool),
+		Courses:           courseRepo,
 		Audit:             pgxrepo.NewAuditRepo(pool),
 		QuotaCache:        pgxrepo.NewQuotaCacheRepo(pool, clk),
 		Queue:             taskQueue,
@@ -155,6 +159,19 @@ func runServe() error {
 		QuotaThresholdPct: cfg.Quota.ThresholdPct,
 		QuotaMaxAge:       time.Duration(cfg.Quota.CacheTTLSeconds*2) * time.Second,
 	}
+	ltiVerifier := lti13.New(lti13.Config{
+		Issuer:   envOrDefault("LTI_PLATFORM_ISSUER", "https://moodle-emulator.local"),
+		ClientID: envOrDefault("LTI_AUDIENCE", "cloud-lab-gateway"),
+		JWKSURL:  envOrDefault("LTI_JWKS_URL", "http://localhost:9000/jwks.json"),
+		Redis:    rdb,
+	})
+	moodleSvc := appmoodle.NewService(appmoodle.Deps{
+		LMS:     ltiVerifier,
+		UoW:     uow,
+		Users:   pgxrepo.NewUserRepo(pool),
+		Courses: courseRepo,
+		Now:     clk.Now,
+	})
 
 	router := chi.NewRouter()
 	router.Use(
@@ -171,9 +188,15 @@ func runServe() error {
 		DevMode:       os.Getenv("CLG_ENV") != "production",
 		SessionSecret: cfg.JWT.Secret,
 	}))
+	router.Mount("/lti", httpapi.NewLTIMux(httpapi.LTIDeps{
+		Moodle:        moodleSvc,
+		Logger:        log,
+		DevMode:       os.Getenv("CLG_ENV") != "production",
+		SessionSecret: cfg.JWT.Secret,
+		SessionTTL:    cfg.JWT.TTL,
+	}))
 	// Application routes are wired here by downstream PRs.
 	// router.Mount("/sse/", sse.NewMux(broker))
-	// router.Mount("/lti/", lti13.NewMux(deps))
 
 	srv := &http.Server{
 		Addr:              cfg.BindAddr,
@@ -206,6 +229,13 @@ func runServe() error {
 	}
 	log.Info("gateway stopped")
 	return nil
+}
+
+func envOrDefault(key, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return fallback
 }
 
 func openPostgres(ctx context.Context, dsn string) (*pgxpool.Pool, error) {

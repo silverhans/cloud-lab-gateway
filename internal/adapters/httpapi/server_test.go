@@ -154,7 +154,13 @@ func TestNotImplementedEndpoint(t *testing.T) {
 
 func TestIssueSessionThenRequireAuth(t *testing.T) {
 	t.Setenv("CLG_JWT_SECRET", testJWTSecret)
-	p := Principal{UserID: uuid.New(), Role: "teacher", CourseRoles: map[uuid.UUID]string{uuid.New(): "teacher"}}
+	p := Principal{
+		UserID:      uuid.New(),
+		DisplayName: "Преподаватель Сергей",
+		Email:       "teacher-001@emulator.local",
+		Role:        "teacher",
+		CourseRoles: map[uuid.UUID]string{uuid.New(): "teacher"},
+	}
 	rr := httptest.NewRecorder()
 	if err := IssueSession(rr, p, time.Hour); err != nil {
 		t.Fatalf("IssueSession: %v", err)
@@ -179,7 +185,8 @@ func TestIssueSessionThenRequireAuth(t *testing.T) {
 	if authRR.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", authRR.Code, authRR.Body.String())
 	}
-	if passed.UserID != p.UserID || passed.Role != p.Role || len(passed.CourseRoles) != len(p.CourseRoles) {
+	if passed.UserID != p.UserID || passed.Role != p.Role || passed.DisplayName != p.DisplayName ||
+		passed.Email != p.Email || len(passed.CourseRoles) != len(p.CourseRoles) {
 		t.Fatalf("principal mismatch: got %+v want %+v", passed, p)
 	}
 

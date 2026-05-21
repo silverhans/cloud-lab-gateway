@@ -12,10 +12,12 @@ func (s *Server) GetAuthMe(ctx context.Context, _ GetAuthMeRequestObject) (GetAu
 	if !ok {
 		return nil, shared.ErrUnauthorized
 	}
+	email := optionalString(p.Email)
 	return GetAuthMe200JSONResponse(UserMe{
 		Id:          p.UserID,
 		Role:        UserMeRole(p.Role),
-		DisplayName: "",
+		DisplayName: p.DisplayName,
+		Email:       email,
 		Courses:     userMeCourses(p),
 	}), nil
 }
@@ -51,4 +53,11 @@ func userMeCourses(p Principal) *[]struct {
 		}{Id: &courseID, RoleInCourse: &courseRole})
 	}
 	return &courses
+}
+
+func optionalString(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
