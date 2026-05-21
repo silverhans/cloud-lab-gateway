@@ -53,6 +53,22 @@ are independent backend tasks; `B1.3` is the HTTP entry point.
 > `internal/adapters/storage/sqlcgen/`. Whichever PR merges second rebases on
 > `main` and re-runs `make gen-sqlc`. Hand-written code never conflicts.
 
+## Batch 4 — frontend integration
+
+The B1.1 skeleton is built but every page renders mock data. These two tasks
+make the frontend a real application against the live API. Both are `web/`-only
+and never conflict with backend work.
+
+| File | Stream | Depends on | Est. effort |
+|---|---|---|---|
+| [B3.1_frontend_api_student.md](B3.1_frontend_api_student.md) | B | B1.3 (contract) | 4-5 h |
+| [B3.2_frontend_teacher_admin.md](B3.2_frontend_teacher_admin.md) | B | B3.1 merged | 3-4 h |
+
+`B3.1` establishes the API-integration pattern (typed client, hook layer,
+error handling); `B3.2` follows it. Both build contract-first — wired against
+`api/openapi.yaml`, degrading gracefully on endpoints the backend still answers
+with `501`.
+
 ## Workflow for each Codex run
 
 1. Pull latest `main`: `git pull origin main`
