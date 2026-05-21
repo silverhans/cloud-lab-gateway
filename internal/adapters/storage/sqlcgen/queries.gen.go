@@ -23,9 +23,13 @@ type Querier interface {
 	GetLabInstanceByID(ctx context.Context, id uuid.UUID) (LabInstance, error)
 	GetProjectByID(ctx context.Context, id uuid.UUID) (Project, error)
 	GetQuotaCache(ctx context.Context) (GetQuotaCacheRow, error)
+	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
+	GetUserByLTI(ctx context.Context, arg GetUserByLTIParams) (User, error)
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
 	InsertEncryptedSecret(ctx context.Context, arg InsertEncryptedSecretParams) (EncryptedSecret, error)
 	InsertOutbox(ctx context.Context, arg InsertOutboxParams) error
+	InsertUserFromLaunch(ctx context.Context, arg InsertUserFromLaunchParams) (User, error)
+	ListCourseRolesByUser(ctx context.Context, userID uuid.UUID) ([]ListCourseRolesByUserRow, error)
 	ListDeployStepsByLab(ctx context.Context, labInstanceID uuid.UUID) ([]LabDeployStep, error)
 	ListPendingCleanupLabs(ctx context.Context, arg ListPendingCleanupLabsParams) ([]LabInstance, error)
 	ListPendingUnfreezeLabs(ctx context.Context, arg ListPendingUnfreezeLabsParams) ([]LabInstance, error)
@@ -34,8 +38,10 @@ type Querier interface {
 	SeedInsertProject(ctx context.Context, arg SeedInsertProjectParams) (int64, error)
 	UpdateLabInstance(ctx context.Context, arg UpdateLabInstanceParams) (LabInstance, error)
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
-	UpsertCourse(ctx context.Context, arg UpsertCourseParams) error
+	UpdateUserFromLaunch(ctx context.Context, arg UpdateUserFromLaunchParams) (User, error)
+	UpsertCourse(ctx context.Context, arg UpsertCourseParams) (uuid.UUID, error)
 	UpsertDeployStep(ctx context.Context, arg UpsertDeployStepParams) error
+	UpsertLTIIdentity(ctx context.Context, arg UpsertLTIIdentityParams) error
 	UpsertQuotaCache(ctx context.Context, snapshot []byte) error
 }
 

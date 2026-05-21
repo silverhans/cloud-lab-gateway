@@ -83,7 +83,7 @@ func (q *Queries) GetCourseByID(ctx context.Context, id uuid.UUID) (Course, erro
 	return i, err
 }
 
-const upsertCourse = `-- name: UpsertCourse :exec
+const upsertCourse = `-- name: UpsertCourse :one
 INSERT INTO courses (
     id,
     external_id,
@@ -101,6 +101,7 @@ VALUES (
 ON CONFLICT (external_id) DO UPDATE
 SET name = EXCLUDED.name,
     ki_domain_id = EXCLUDED.ki_domain_id
+RETURNING id
 `
 
 type UpsertCourseParams struct {
@@ -111,13 +112,15 @@ type UpsertCourseParams struct {
 	CreatedAt  interface{} `json:"created_at"`
 }
 
-func (q *Queries) UpsertCourse(ctx context.Context, arg UpsertCourseParams) error {
-	_, err := q.db.Exec(ctx, upsertCourse,
+func (q *Queries) UpsertCourse(ctx context.Context, arg UpsertCourseParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, upsertCourse,
 		arg.ID,
 		arg.ExternalID,
 		arg.Name,
 		arg.KiDomainID,
 		arg.CreatedAt,
 	)
-	return err
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }

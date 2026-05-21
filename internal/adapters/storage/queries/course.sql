@@ -8,7 +8,7 @@ SELECT *
 FROM courses
 WHERE external_id = $1;
 
--- name: UpsertCourse :exec
+-- name: UpsertCourse :one
 INSERT INTO courses (
     id,
     external_id,
@@ -25,7 +25,8 @@ VALUES (
 )
 ON CONFLICT (external_id) DO UPDATE
 SET name = EXCLUDED.name,
-    ki_domain_id = EXCLUDED.ki_domain_id;
+    ki_domain_id = EXCLUDED.ki_domain_id
+RETURNING id;
 
 -- name: EnrollCourseUser :exec
 INSERT INTO enrollments (

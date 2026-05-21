@@ -60,15 +60,17 @@ func (r *CourseRepo) Upsert(ctx context.Context, tx ports.Tx, c *identity.Course
 		return err
 	}
 	ensureCourseID(c)
-	if err := q.UpsertCourse(ctx, sqlcgen.UpsertCourseParams{
+	id, err := q.UpsertCourse(ctx, sqlcgen.UpsertCourseParams{
 		ID:         courseID(c.ID),
 		ExternalID: c.ExternalID,
 		Name:       c.Name,
 		KiDomainID: c.KIDomainID,
 		CreatedAt:  nullableTimeArg(c.CreatedAt),
-	}); err != nil {
+	})
+	if err != nil {
 		return fmt.Errorf("pgxrepo: upsert course: %w", err)
 	}
+	c.ID = shared.CourseID(id)
 	return nil
 }
 

@@ -1,12 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { GraduationCap, ShieldCheck, UserRound } from "lucide-react";
-import { setDemoUser } from "@/lib/auth";
+import { ExternalLink, GraduationCap, ShieldCheck, UserRound } from "lucide-react";
+import { demoAuthEnabled, moodleEmulatorUrl, setDemoUser } from "@/lib/auth";
 import type { Role } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 
 const demoRoles: Array<{ role: Role; label: string; icon: typeof UserRound }> = [
   { role: "student", label: "Войти как студент", icon: UserRound },
@@ -17,6 +16,8 @@ const demoRoles: Array<{ role: Role; label: string; icon: typeof UserRound }> = 
 export function LoginPage(): JSX.Element {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const showDemoFallback = demoAuthEnabled();
+  const moodleUrl = moodleEmulatorUrl();
 
   function loginAs(role: Role): void {
     setDemoUser(role);
@@ -39,31 +40,36 @@ export function LoginPage(): JSX.Element {
 
         <Card>
           <CardHeader>
-            <CardTitle>Вход для демо</CardTitle>
+            <CardTitle>Вход через Moodle</CardTitle>
             <CardDescription>
-              Пока Moodle и КИ не подключены, можно переключаться между ролями локально.
+              Moodle подписывает LTI 1.3 launch, шлюз проверяет JWT и выдаёт защищённую сессию.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" value="student-001@emulator.local" readOnly />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Пароль</Label>
-                <Input id="password" type="password" value="demo-password" readOnly />
-              </div>
-            </div>
+            <Button asChild size="lg" className="w-full">
+              <a href={moodleUrl}>
+                <ExternalLink className="h-4 w-4" />
+                Открыть Moodle emulator
+              </a>
+            </Button>
+            <p className="text-xs leading-5 text-muted-foreground">
+              В emulator выбери курс, лабораторную и пользователя. После launch браузер вернётся сюда уже с
+              настоящей backend-сессией.
+            </p>
 
-            <div className="grid gap-2">
-              {demoRoles.map((item) => (
-                <Button key={item.role} variant="secondary" onClick={() => loginAs(item.role)}>
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </Button>
-              ))}
-            </div>
+            {showDemoFallback ? (
+              <>
+                <Separator />
+                <div className="grid gap-2">
+                  {demoRoles.map((item) => (
+                    <Button key={item.role} variant="secondary" onClick={() => loginAs(item.role)}>
+                      <item.icon className="h-4 w-4" />
+                      {item.label}
+                    </Button>
+                  ))}
+                </div>
+              </>
+            ) : null}
           </CardContent>
         </Card>
       </div>

@@ -1,4 +1,5 @@
 import { Link, useRouter } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import type React from "react";
 import {
   Activity,
@@ -44,12 +45,18 @@ const navItems: NavItem[] = [
 
 export function AppShell({ user, children }: AppShellProps): JSX.Element {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const visibleItems = navItems.filter((item) => item.roles.includes(user.role));
 
-  function logout(): void {
-    clearStoredUser();
-    void router.invalidate();
-    void router.navigate({ to: "/login" });
+  async function logout(): Promise<void> {
+    try {
+      await fetch("/api/v1/auth/logout", { method: "POST", credentials: "include" });
+    } finally {
+      clearStoredUser();
+      await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
+      await router.invalidate();
+      await router.navigate({ to: "/login" });
+    }
   }
 
   return (
@@ -86,7 +93,7 @@ export function AppShell({ user, children }: AppShellProps): JSX.Element {
 
           <div className="p-4">
             <Separator className="mb-4" />
-            <Button variant="ghost" className="w-full justify-start" onClick={logout}>
+            <Button variant="ghost" className="w-full justify-start" onClick={() => void logout()}>
               <DoorOpen className="h-4 w-4" />
               Выйти
             </Button>

@@ -3,7 +3,17 @@ import type { CurrentUser, Role } from "./types";
 
 const storageKey = "clg.demoUser";
 
+export function demoAuthEnabled(): boolean {
+  return import.meta.env.VITE_DEMO_AUTH === "1";
+}
+
+export function moodleEmulatorUrl(): string {
+  return import.meta.env.VITE_MOODLE_EMULATOR_URL ?? "http://localhost:9000";
+}
+
 export function getStoredUser(): CurrentUser | null {
+  if (!demoAuthEnabled() || typeof window === "undefined") return null;
+
   const raw = window.localStorage.getItem(storageKey);
   if (!raw) return null;
 
@@ -17,10 +27,13 @@ export function getStoredUser(): CurrentUser | null {
 
 export function setDemoUser(role: Role): CurrentUser {
   const user = demoUsers[role];
-  window.localStorage.setItem(storageKey, JSON.stringify(user));
+  if (demoAuthEnabled() && typeof window !== "undefined") {
+    window.localStorage.setItem(storageKey, JSON.stringify(user));
+  }
   return user;
 }
 
 export function clearStoredUser(): void {
+  if (typeof window === "undefined") return;
   window.localStorage.removeItem(storageKey);
 }

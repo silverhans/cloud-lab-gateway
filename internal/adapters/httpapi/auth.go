@@ -21,11 +21,15 @@ type principalKey struct{}
 // Principal is the authenticated browser subject carried in request context.
 type Principal struct {
 	UserID      uuid.UUID
+	DisplayName string
+	Email       string
 	Role        string
 	CourseRoles map[uuid.UUID]string
 }
 
 type sessionClaims struct {
+	DisplayName string            `json:"display_name,omitempty"`
+	Email       string            `json:"email,omitempty"`
 	Role        string            `json:"role"`
 	CourseRoles map[string]string `json:"course_roles,omitempty"`
 	jwt.RegisteredClaims
@@ -55,6 +59,8 @@ func issueSession(w http.ResponseWriter, p Principal, ttl time.Duration, secret 
 	}
 	now := time.Now().UTC()
 	claims := sessionClaims{
+		DisplayName: p.DisplayName,
+		Email:       p.Email,
 		Role:        p.Role,
 		CourseRoles: encodeCourseRoles(p.CourseRoles),
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -126,6 +132,8 @@ func (s *Server) parsePrincipal(r *http.Request) (Principal, error) {
 	}
 	return Principal{
 		UserID:      id,
+		DisplayName: claims.DisplayName,
+		Email:       claims.Email,
 		Role:        claims.Role,
 		CourseRoles: decodeCourseRoles(claims.CourseRoles),
 	}, nil
