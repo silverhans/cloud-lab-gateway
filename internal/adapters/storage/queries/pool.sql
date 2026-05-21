@@ -33,7 +33,7 @@ WHERE id = $1;
 -- name: ListProjectsByDomain :many
 SELECT *
 FROM projects
-WHERE ki_domain_id = $1
+WHERE (sqlc.narg('ki_domain_id')::text IS NULL OR ki_domain_id = sqlc.narg('ki_domain_id')::text)
   AND (sqlc.narg('state')::text IS NULL OR state = sqlc.narg('state')::text)
 ORDER BY created_at, id;
 

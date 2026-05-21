@@ -161,6 +161,68 @@ func (q *Queries) GetLabInstanceByID(ctx context.Context, id uuid.UUID) (LabInst
 	return i, err
 }
 
+const listLabInstances = `-- name: ListLabInstances :many
+SELECT id, student_user_id, course_id, lab_template_id, project_id, state, state_reason, ki_resources, cleanup_at, unfreeze_at, frozen_by_user_id, frozen_reason, student_ssh_key_secret_id, checker_ssh_key_secret_id, created_at, updated_at
+FROM lab_instances
+WHERE ($1::uuid IS NULL OR student_user_id = $1::uuid)
+  AND ($2::uuid IS NULL OR course_id = $2::uuid)
+  AND (cardinality($3::uuid[]) = 0 OR course_id = ANY($3::uuid[]))
+  AND (cardinality($4::text[]) = 0 OR state = ANY($4::text[]))
+ORDER BY created_at DESC, id DESC
+LIMIT $5
+`
+
+type ListLabInstancesParams struct {
+	StudentUserID uuid.NullUUID `json:"student_user_id"`
+	CourseID      uuid.NullUUID `json:"course_id"`
+	CourseIds     []uuid.UUID   `json:"course_ids"`
+	States        []string      `json:"states"`
+	Limit         int32         `json:"limit"`
+}
+
+func (q *Queries) ListLabInstances(ctx context.Context, arg ListLabInstancesParams) ([]LabInstance, error) {
+	rows, err := q.db.Query(ctx, listLabInstances,
+		arg.StudentUserID,
+		arg.CourseID,
+		arg.CourseIds,
+		arg.States,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LabInstance{}
+	for rows.Next() {
+		var i LabInstance
+		if err := rows.Scan(
+			&i.ID,
+			&i.StudentUserID,
+			&i.CourseID,
+			&i.LabTemplateID,
+			&i.ProjectID,
+			&i.State,
+			&i.StateReason,
+			&i.KiResources,
+			&i.CleanupAt,
+			&i.UnfreezeAt,
+			&i.FrozenByUserID,
+			&i.FrozenReason,
+			&i.StudentSshKeySecretID,
+			&i.CheckerSshKeySecretID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPendingCleanupLabs = `-- name: ListPendingCleanupLabs :many
 SELECT id, student_user_id, course_id, lab_template_id, project_id, state, state_reason, ki_resources, cleanup_at, unfreeze_at, frozen_by_user_id, frozen_reason, student_ssh_key_secret_id, checker_ssh_key_secret_id, created_at, updated_at
 FROM lab_instances

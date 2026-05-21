@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/cloud-lab-gateway/gateway/internal/adapters/storage/sqlcgen"
+	applab "github.com/cloud-lab-gateway/gateway/internal/app/lab"
 	"github.com/cloud-lab-gateway/gateway/internal/domain/lab"
 	"github.com/cloud-lab-gateway/gateway/internal/domain/shared"
 	"github.com/cloud-lab-gateway/gateway/internal/ports"
@@ -83,6 +84,29 @@ func (r *LabRepo) GetByID(ctx context.Context, id shared.LabInstanceID) (*lab.La
 		return nil, fmt.Errorf("pgxrepo: get lab: %w", err)
 	}
 	return labFromRow(row)
+}
+
+// List returns lab instances matching the optional filters. This is an
+// adapter-side read model used by app use cases without widening ports.LabRepo.
+func (r *LabRepo) List(ctx context.Context, f applab.LabListFilter) ([]lab.LabInstance, error) {
+	limit, err := listLimitInt32(f.Limit)
+	if err != nil {
+		return nil, err
+	}
+	if limit == 0 {
+		limit = 200
+	}
+	rows, err := r.q.ListLabInstances(ctx, sqlcgen.ListLabInstancesParams{
+		StudentUserID: nullableUserID(f.StudentUserID),
+		CourseID:      nullableCourseID(f.CourseID),
+		CourseIds:     courseIDs(f.CourseIDs),
+		States:        labStates(f.States),
+		Limit:         limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("pgxrepo: list labs: %w", err)
+	}
+	return labsFromRows(rows)
 }
 
 // FindActiveByStudentAndCourse returns nil when no active lab exists.

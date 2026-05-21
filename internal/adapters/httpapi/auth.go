@@ -102,11 +102,18 @@ func (s *Server) RequireAuth(next http.Handler) http.Handler {
 }
 
 func (s *Server) parsePrincipal(r *http.Request) (Principal, error) {
+	return ParsePrincipal(r, s.deps.SessionSecret)
+}
+
+// ParsePrincipal validates the clg_session cookie and returns the browser
+// principal. It is exported so non-OpenAPI routes such as /sse/labs can reuse
+// exactly the same session semantics as REST handlers.
+func ParsePrincipal(r *http.Request, sessionSecret string) (Principal, error) {
 	cookie, err := r.Cookie(sessionCookieName)
 	if err != nil || cookie.Value == "" {
 		return Principal{}, shared.ErrUnauthorized
 	}
-	secret := s.deps.SessionSecret
+	secret := sessionSecret
 	if secret == "" {
 		secret = os.Getenv("CLG_JWT_SECRET")
 	}

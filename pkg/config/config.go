@@ -16,15 +16,16 @@ import (
 
 // Config is the root configuration struct shared by gateway and worker.
 type Config struct {
-	BindAddr  string
-	LogLevel  string
-	PG        PG
-	Redis     Redis
-	KEK       KEK
-	JWT       JWT
-	Quota     Quota
-	Lifecycle Lifecycle
-	OpenStack OpenStack
+	BindAddr      string
+	LogLevel      string
+	CloudProvider string
+	PG            PG
+	Redis         Redis
+	KEK           KEK
+	JWT           JWT
+	Quota         Quota
+	Lifecycle     Lifecycle
+	OpenStack     OpenStack
 }
 
 type PG struct {
@@ -78,8 +79,9 @@ func Load() (Config, error) {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	cfg := Config{
-		BindAddr: getString(v, "CLG_BIND_ADDR", "0.0.0.0:8080"),
-		LogLevel: getString(v, "LOG_LEVEL", "info"),
+		BindAddr:      getString(v, "CLG_BIND_ADDR", "0.0.0.0:8080"),
+		LogLevel:      getString(v, "LOG_LEVEL", "info"),
+		CloudProvider: getString(v, "CLG_CLOUD_PROVIDER", "inmem"),
 		PG: PG{
 			DSN: getString(v, "PG_DSN", ""),
 		},

@@ -35,9 +35,15 @@ import (
 	"github.com/cloud-lab-gateway/gateway/internal/adapters/httpapi"
 	"github.com/cloud-lab-gateway/gateway/internal/adapters/lms/lti13"
 	queueasynq "github.com/cloud-lab-gateway/gateway/internal/adapters/queue/asynq"
+	"github.com/cloud-lab-gateway/gateway/internal/adapters/secrets/envkek"
+	"github.com/cloud-lab-gateway/gateway/internal/adapters/sse"
 	"github.com/cloud-lab-gateway/gateway/internal/adapters/storage/pgxrepo"
+	appadmin "github.com/cloud-lab-gateway/gateway/internal/app/admin"
 	applab "github.com/cloud-lab-gateway/gateway/internal/app/lab"
 	appmoodle "github.com/cloud-lab-gateway/gateway/internal/app/moodle"
+	appoutbox "github.com/cloud-lab-gateway/gateway/internal/app/outbox"
+	appverify "github.com/cloud-lab-gateway/gateway/internal/app/verify"
+	"github.com/cloud-lab-gateway/gateway/internal/domain/shared"
 	"github.com/cloud-lab-gateway/gateway/pkg/clock"
 	"github.com/cloud-lab-gateway/gateway/pkg/config"
 	"github.com/cloud-lab-gateway/gateway/pkg/logger"
@@ -145,19 +151,55 @@ func runServe() error {
 
 	clk := clock.System{}
 	uow := pgxrepo.NewUoW(pool)
+	auditRepo := pgxrepo.NewAuditRepo(pool)
 	courseRepo := pgxrepo.NewCourseRepo(pool)
+	labRepo := pgxrepo.NewLabRepo(pool)
+	poolRepo := pgxrepo.NewPoolRepo(pool)
+	quotaCache := pgxrepo.NewQuotaCacheRepo(pool, clk)
+	deployStepRepo := pgxrepo.NewDeployStepRepo(pool)
+	checkRunRepo := pgxrepo.NewCheckRunRepo(pool)
+
+	keyProvider, err := envkek.NewKeyProvider()
+	if err != nil {
+		return err
+	}
+	secretStore := envkek.NewStore(pool, keyProvider, auditRepo, clk)
+
 	labDeps := applab.Deps{
-		UoW:               uow,
-		Pool:              pgxrepo.NewPoolRepo(pool),
-		Lab:               pgxrepo.NewLabRepo(pool),
-		Courses:           courseRepo,
-		Audit:             pgxrepo.NewAuditRepo(pool),
-		QuotaCache:        pgxrepo.NewQuotaCacheRepo(pool, clk),
-		Queue:             taskQueue,
-		Clock:             clk,
-		Logger:            log,
-		QuotaThresholdPct: cfg.Quota.ThresholdPct,
-		QuotaMaxAge:       time.Duration(cfg.Quota.CacheTTLSeconds*2) * time.Second,
+		UoW:                 uow,
+		Pool:                poolRepo,
+		Lab:                 labRepo,
+		LabReader:           labRepo,
+		Steps:               deployStepRepo,
+		Courses:             courseRepo,
+		Audit:               auditRepo,
+		QuotaCache:          quotaCache,
+		Queue:               taskQueue,
+		Secrets:             secretStore,
+		Clock:               clk,
+		Logger:              log,
+		QuotaThresholdPct:   cfg.Quota.ThresholdPct,
+		QuotaMaxAge:         time.Duration(cfg.Quota.CacheTTLSeconds*2) * time.Second,
+		DefaultCleanupAfter: cfg.Lifecycle.DefaultCleanup,
+		DefaultFreezeFor:    cfg.Lifecycle.DefaultFreeze,
+	}
+	verifyDeps := appverify.Deps{
+		UoW:       uow,
+		Labs:      labRepo,
+		Runs:      checkRunRepo,
+		Templates: pgxrepo.NewCheckTemplateRepo(pool),
+		Queue:     taskQueue,
+		Clock:     clk,
+		Logger:    log,
+	}
+	adminDeps := appadmin.Deps{
+		UoW:        uow,
+		Pool:       poolRepo,
+		Audit:      auditRepo,
+		Settings:   pgxrepo.NewSettingsRepo(pool),
+		QuotaCache: quotaCache,
+		Clock:      clk,
+		Logger:     log,
 	}
 	ltiVerifier := lti13.New(lti13.Config{
 		Issuer:   envOrDefault("LTI_PLATFORM_ISSUER", "https://moodle-emulator.local"),
@@ -172,6 +214,23 @@ func runServe() error {
 		Courses: courseRepo,
 		Now:     clk.Now,
 	})
+	eventBus := queueasynq.NewEventBusWithClient(rdb)
+	outboxPublisher := appoutbox.New(pgxrepo.NewOutboxRepo(pool), eventBus, log)
+	go func() {
+		if err := outboxPublisher.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			log.Warn("outbox publisher stopped", zap.Error(err))
+		}
+	}()
+	sseBroker := sse.NewBroker(eventBus, sse.LabResolverFunc(func(ctx context.Context, id shared.LabInstanceID) (shared.UserID, error) {
+		lab, err := labRepo.GetByID(ctx, id)
+		if err != nil {
+			return shared.UserID{}, err
+		}
+		return lab.StudentUserID, nil
+	}), log)
+	if err := sseBroker.Start(ctx); err != nil {
+		return err
+	}
 
 	router := chi.NewRouter()
 	router.Use(
@@ -184,6 +243,9 @@ func runServe() error {
 
 	router.Mount("/api/v1", httpapi.NewMux(httpapi.Deps{
 		Lab:           labDeps,
+		LabOps:        labDeps,
+		Verify:        verifyDeps,
+		Admin:         adminDeps,
 		Logger:        log,
 		DevMode:       os.Getenv("CLG_ENV") != "production",
 		SessionSecret: cfg.JWT.Secret,
@@ -195,8 +257,11 @@ func runServe() error {
 		SessionSecret: cfg.JWT.Secret,
 		SessionTTL:    cfg.JWT.TTL,
 	}))
-	// Application routes are wired here by downstream PRs.
-	// router.Mount("/sse/", sse.NewMux(broker))
+	router.Mount("/sse", sse.NewMux(sse.HandlerDeps{
+		Broker:        sseBroker,
+		SessionSecret: cfg.JWT.Secret,
+		Logger:        log,
+	}))
 
 	srv := &http.Server{
 		Addr:              cfg.BindAddr,
