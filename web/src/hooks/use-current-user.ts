@@ -1,30 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { getStoredUser } from "@/lib/auth";
-import type { CurrentUser, Role } from "@/lib/types";
-
-type ApiCurrentUser = {
-  id: string;
-  display_name: string;
-  email?: string | null;
-  role: string;
-};
+import { problemFrom } from "@/lib/problem";
+import type { CurrentUser } from "@/lib/types";
 
 async function fetchCurrentUser(): Promise<CurrentUser | null> {
-  try {
-    const response = await fetch("/api/v1/auth/me", { credentials: "include" });
-    if (response.status === 401) return getStoredUser();
-    if (!response.ok) return null;
-    const payload = (await response.json()) as ApiCurrentUser;
-    if (!isRole(payload.role)) return null;
-    return {
-      id: payload.id,
-      displayName: payload.display_name,
-      email: payload.email ?? "",
-      role: payload.role,
-    };
-  } catch {
+  const { data, error, response } = await api.GET("/auth/me");
+  if (response.status === 401) {
     return getStoredUser();
   }
+  if (error) throw problemFrom(error, response, "Не удалось проверить сессию");
+  return data ?? null;
 }
 
 export function useCurrentUser() {
@@ -32,8 +18,4 @@ export function useCurrentUser() {
     queryKey: ["auth", "me"],
     queryFn: fetchCurrentUser,
   });
-}
-
-function isRole(value: string): value is Role {
-  return value === "student" || value === "teacher" || value === "admin";
 }

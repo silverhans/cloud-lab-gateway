@@ -15,6 +15,8 @@ import {
   Shield,
 } from "lucide-react";
 import { clearStoredUser } from "@/lib/auth";
+import { api } from "@/lib/api";
+import { problemFrom, toastProblem } from "@/lib/problem";
 import type { CurrentUser, Role } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -50,7 +52,10 @@ export function AppShell({ user, children }: AppShellProps): JSX.Element {
 
   async function logout(): Promise<void> {
     try {
-      await fetch("/api/v1/auth/logout", { method: "POST", credentials: "include" });
+      const { response } = await api.POST("/auth/logout");
+      if (!response.ok) throw problemFrom(undefined, response, "Не удалось завершить сессию");
+    } catch (error) {
+      toastProblem(error, "Не удалось завершить сессию");
     } finally {
       clearStoredUser();
       await queryClient.invalidateQueries({ queryKey: ["auth", "me"] });
@@ -110,7 +115,7 @@ export function AppShell({ user, children }: AppShellProps): JSX.Element {
             </div>
             <div className="flex items-center gap-3">
               <div className="hidden text-right sm:block">
-                <div className="text-sm font-medium">{user.displayName}</div>
+                <div className="text-sm font-medium">{user.display_name}</div>
                 <div className="text-xs text-muted-foreground">{user.email}</div>
               </div>
               <RoleBadge role={user.role} />
