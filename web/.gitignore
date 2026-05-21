@@ -2,7 +2,7 @@ node_modules/
 dist/
 .vite/
 *.tsbuildinfo
-src/lib/api.gen.ts
+# src/lib/api.gen.ts — generated client, kept in git so CI typecheck/build have it
 *.local
 .env
 .env.*
