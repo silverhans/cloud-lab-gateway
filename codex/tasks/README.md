@@ -69,6 +69,25 @@ error handling); `B3.2` follows it. Both build contract-first — wired against
 `api/openapi.yaml`, degrading gracefully on endpoints the backend still answers
 with `501`.
 
+## Batch 5 — close the backend, light up every endpoint
+
+These five tasks finish the path to a working end-to-end deploy. `A5.1` is the
+critical unblocker — until the worker registers handlers, no async work runs.
+
+| File | Stream | Depends on | Est. effort |
+|---|---|---|---|
+| [A5.1_worker_wiring.md](A5.1_worker_wiring.md) | A | — | 2-3 h |
+| [B5.1_sse_broker.md](B5.1_sse_broker.md) | B | — | 3-4 h |
+| [B5.2_lab_endpoints.md](B5.2_lab_endpoints.md) | B | B1.3 | 3-4 h |
+| [B5.3_checks_slice.md](B5.3_checks_slice.md) | B | A5.1, B1.3 | 4-5 h |
+| [B5.4_admin_endpoints.md](B5.4_admin_endpoints.md) | B | B1.3 | 3-4 h |
+
+Run `A5.1` first — it makes the deploy/cleanup sagas actually execute. `B5.2` /
+`B5.3` / `B5.4` each extend `httpapi.Deps` and remove stubs from
+`notimplemented.go`: each adds handlers in its own new file, and whoever merges
+later rebases to resolve the small overlap. `B5.3` and `B5.4` also regenerate
+`sqlcgen/` — rebase + `make gen-sqlc`.
+
 ## Workflow for each Codex run
 
 1. Pull latest `main`: `git pull origin main`
