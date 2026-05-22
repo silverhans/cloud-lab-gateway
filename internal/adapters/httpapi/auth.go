@@ -86,6 +86,34 @@ func issueSession(w http.ResponseWriter, p Principal, ttl time.Duration, secret 
 	return nil
 }
 
+// devPrincipal returns a synthetic principal for the demo profile when there is
+// no valid session cookie. Active only in dev mode; the role comes from the
+// clg_dev_role cookie (default "student"). Never reached in production, where
+// DevMode is false.
+func devPrincipal(r *http.Request, devMode bool) (Principal, bool) {
+	if !devMode {
+		return Principal{}, false
+	}
+	role := "student"
+	if c, err := r.Cookie("clg_dev_role"); err == nil && c.Value != "" {
+		role = c.Value
+	}
+	ids := map[string]string{
+		"student": "9d3fc8dc-2b85-4ea2-99c8-5c24a9480631",
+		"teacher": "a58939a4-80f0-4ff8-bff9-fec9633155a5",
+		"admin":   "1f387a9d-3316-48b7-9f0f-c8aaccc1fd88",
+	}
+	idStr, ok := ids[role]
+	if !ok {
+		return Principal{}, false
+	}
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return Principal{}, false
+	}
+	return Principal{UserID: id, Role: role, DisplayName: "Demo " + role}, true
+}
+
 func (s *Server) RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if isAuthExempt(r) {
@@ -94,6 +122,10 @@ func (s *Server) RequireAuth(next http.Handler) http.Handler {
 		}
 		p, err := s.parsePrincipal(r)
 		if err != nil {
+			if dp, ok := devPrincipal(r, s.deps.DevMode); ok {
+				next.ServeHTTP(w, r.WithContext(contextWithPrincipal(r.Context(), dp)))
+				return
+			}
 			s.renderProblem(w, r, shared.ErrUnauthorized)
 			return
 		}

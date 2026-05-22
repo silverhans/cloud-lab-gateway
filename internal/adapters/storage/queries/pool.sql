@@ -22,7 +22,7 @@ SET state = $2,
     cleanup_failures = $4,
     last_state_change_at = $5
 WHERE id = $1
-  AND last_state_change_at < $5
+  AND last_state_change_at <= $5
 RETURNING *;
 
 -- name: GetProjectByID :one

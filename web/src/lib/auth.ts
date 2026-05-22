@@ -29,6 +29,7 @@ export function setDemoUser(role: Role): CurrentUser {
   const user = demoUsers[role];
   if (demoAuthEnabled() && typeof window !== "undefined") {
     window.localStorage.setItem(storageKey, JSON.stringify(user));
+    document.cookie = `clg_dev_role=${role};path=/`;
   }
   return user;
 }

@@ -245,7 +245,7 @@ SET state = $2,
     cleanup_failures = $4,
     last_state_change_at = $5
 WHERE id = $1
-  AND last_state_change_at < $5
+  AND last_state_change_at <= $5
 RETURNING id, ki_project_id, ki_domain_id, name, state, allocated_to_lab_id, cleanup_failures, last_state_change_at, created_at
 `
 

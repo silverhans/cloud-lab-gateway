@@ -160,10 +160,7 @@ export function StudentPage(): JSX.Element {
         <TtlCard lab={detail} cleanupLabel={cleanupLabel} onStop={() => void stopLab.mutateAsync(detail.id)} stopping={stopLab.isPending} />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
-        <ChecksCard checks={checks} loading={checksQuery.isFetching} onRun={() => void startCheck(detail)} running={runCheck.isPending} />
-        <QuotaCard quota={quotaQuery.data} error={quotaQuery.error} refetch={() => void quotaQuery.refetch()} />
-      </div>
+      <ChecksCard checks={checks} loading={checksQuery.isFetching} onRun={() => void startCheck(detail)} running={runCheck.isPending} />
     </div>
   );
 }
